@@ -3,7 +3,8 @@ name: github-repositories
 description: >-
   Naming, owner, local folder and topics (tags) of GitHub repositories: the
   walid-mos rules and the base an organization overlay extends. Load before
-  creating, renaming, transferring or setting the topics of a repository.
+  creating, renaming, transferring or setting the topics of a repository,
+  including opting it into the PR factory.
 ---
 
 # GitHub repositories
@@ -50,7 +51,10 @@ GitHub topics are lowercase letters, digits and hyphens, with at most 20 per rep
 | status | exactly 1 | `status-active`: feature work in the last ~60 days. `status-stable`: live, fixes only. `status-deprecated`: replaced, kept running until its users move, then archived. Archived repositories keep GitHub's own archived flag on top. |
 | domain | 0 to 2 | `website` (public, no sign-in), `webapp` (sign-in, stored data), `ci-cd`, `ai-agents`, `developer-tools` |
 | stack | any | `typescript`, `rust`, `swift`, `astro`, `react`, `hono`, `threejs`, `strapi`, `cloudflare-workers`, `docker` |
+| automation | 0 or 1 | `factory`: the PR factory checks, judges and merges each pull request of the repository once it is ready for review, and skips drafts. While the factory has no check definitions for the repository, it reports each ready pull request and merges none. |
 
 Prefixes (`kind-`, `status-`) only go on our own dimensions, so `topic:kind-tool` filters exactly. Domain and stack use GitHub's common topics so public pages link to the shared topic lists. Add a new value to the table that owns it first, this one or an overlay skill's, then apply it. Never invent one on a single repository.
+
+`factory` keeps the bare name the factory matches. Add or remove it by "PR factory" in `session/bot/AGENTS.md` of the agent-sandbox repository, which also names where a repository's checks are defined.
 
 Search by topic: `gh search repos --owner walid-mos --topic kind-tool`, or `topic:status-deprecated` on github.com.
