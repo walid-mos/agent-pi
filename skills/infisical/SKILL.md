@@ -1,0 +1,56 @@
+---
+name: infisical
+description: >-
+  Infisical machine authentication, project links, environment injection and
+  value-safe secret operations. Load whenever a task touches Infisical in any
+  repository, a local env file, the CLI, or the Infisical MCP, and whenever
+  Infisical refuses a project (HTTP 403, ProjectMembershipNotFound).
+---
+
+# Infisical
+
+## Machine authentication
+
+Agents and unattended local jobs use Universal Auth, never the human's CLI session. `security/machine-identity.ts` owns login and domain lookup from `~/.config/agent-secrets/core-vault.json`. The shell must export `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`. Do not read their source files. Missing or refused credentials require the human to repair the session environment, not a browser login.
+
+Use `~/.pi/agent/bin/infisical` for CLI calls. Pi prepends that directory to tool PATH. Claude Code's pre-call hook requires the explicit path. The shim supplies a fresh token in the child's environment and refuses interactive commands and token/domain overrides. The human's own CLI session remains untouched. This is command routing, not isolation from an agent with unrestricted shell access.
+
+The Infisical MCP authenticates from the same exported Universal Auth credentials. Keep `INFISICAL_MASK_SECRET_VALUES=true`. The MCP has its own login implementation. External workspace tooling and shell refresh functions are outside this repository and must also use machine credentials.
+
+## Value-safe operations
+
+A value never reaches the context. List names with `node ~/.pi/agent/security/secret-names.mjs --projectId ID --env ENV --path /`. Write with `node ~/.pi/agent/security/secret-set.mjs --projectId ID --env ENV --name NAME [--path /] [--replace]`, using the masked terminal prompt or stdin. For a value the human holds, use `ask_user_secret` with `destination: infisical`.
+
+Move or copy with `node ~/.pi/agent/security/secret-move.mjs --name NAME --from ID/ENV --to ID/ENV [--path /]`. `--keep` copies and `--replace` permits overwrite. Verify by name only. Values consumed by another command stay in its environment, stdin or a captured shell variable, never argv, logs, temporary files or tool output. Capture errors privately and release only fixed messages or HTTP status codes.
+
+## Local env
+
+Reuse the committed `.infisical.json` or `.infisical.yaml` after verifying its project ID against the repository's project. A mismatch blocks execution. For a missing link, obtain the authorized project's ID and write `.infisical.json` with `workspaceId` and `defaultEnvironment`, then commit it. The shim resolves the project from the nearest link or `INFISICAL_PROJECT_ID`. Explicit `--projectId` takes precedence. Always specify `--env`.
+
+- Run `~/.pi/agent/bin/infisical run --env=dev [--path /<app>] -- <command>`. Follow project-specific runtime setup in the project's own instructions.
+- Import a leftover env file without reading it with `~/.pi/agent/bin/infisical secrets set --env <slug> [--path /<app>] --file <file>`. Confirm every reported name with the names script, then delete the local file and update its consumers to use injection. Tracked templates stay.
+- Deleting a shared secret requires `secrets delete NAME --type shared` because the CLI defaults to personal secrets.
+
+## Projects and grants
+
+Create every project with the provisioning command in [projects.md](projects.md), never in the dashboard: Infisical makes the creator a project member, so only a project the machine identity creates is readable without a human step. Read projects.md before creating projects or environments or changing memberships. An inaccessible project is not an empty vault. Do not switch identities or create a replacement to evade a refusal.
+
+### Missing project access
+
+The command that needs a project checks access before running the CLI, reading a value or touching secrets. HTTP 403 `ProjectMembershipNotFound` stops it with a report naming the identity, the refused project, other unreadable secret-manager projects and the one-time human step.
+
+1. Relay that report to the human once. Never ask whether access has been restored.
+2. Keep working on everything that does not need those projects' secrets, and report the rest as waiting on that step.
+3. Rerun the same command when it is needed again. A successful project check is the evidence of access.
+
+HTTP 404 means no project has that ID. Correct the committed link or `--projectId` before rerunning.
+
+## core-vault
+
+Reserve this project for AI clients. Keep root empty. Shared provider credentials belong under `/providers`, shared MCP credentials under `/mcp/<server>`, tool credentials under `/tools/<tool>`, and client authentication under `/clients/<client>`. Application secrets belong in their own projects.
+
+The binding owns the project, environment, domain, identity IDs, exports and tool paths. `models.json` reads each provider key from the session's shell export (`$NAME`), so a model request starts no process and never waits on Infisical. A session started without the export has no key for that provider: run `infisical-refresh`, open a new shell and start Pi from it. A session started before a rotation keeps the old key until it is restarted. Bootstrap credentials stay outside the vault they unlock.
+
+After an authorized rotation, run `infisical-refresh`, open a new shell and restart clients. After rotating `CLAUDE_CODE_OAUTH_TOKEN`, also run `~/.pi/agent/bin/magpie-claude-token-sync` on the Magpie gateway host, so Magpie serves Claude on the new token without a new `/login`. Never fill missing keys with placeholders.
+
+For shared Codex access, keep the rotating refresh-bearing sign-in on the publishing Mac only. It publishes with `bin/pi-token-sync`, installed by `bin/pi-token-sync-install`; consumers run `bin/pi-token-pull`. Read [bin/README.md](../../bin/README.md#shared-codex-authentication) before installing, repairing or verifying either side. Workspace VMs need this checkout, Node 24, the CLI, their binding and their own authorized machine credentials. The external workspace profile provisioning code is not changed by this repository.

@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+import { parseArgs } from 'node:util'
+
+import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+
+import {
+	AUTH_FILE, PROVIDER, PUBLISH_VALIDITY_MS,
+	TokenSyncError, fail, getSecret, loadJobCredentials, log, openVault, ownsSignIn, publication, readAuth, readPublication, writeSecret,
+} from './lib/pi-token.mjs'
+import { HTTP_NOT_FOUND, HTTP_OK } from '../security/infisical-rest.ts'
+
+async function freshPublication() {
+	if (!ownsSignIn(readAuth()[PROVIDER]))
+		throw new TokenSyncError('This machine has no refresh-bearing Codex sign-in. Run /login openai-codex in Pi on the publishing Mac only')
+	const models = await ModelRuntime.create({ authPath: AUTH_FILE, modelsPath: null, refreshOnCreate: false })
+	try {
+		await models.getAuth(PROVIDER, { minOAuthValidityMs: PUBLISH_VALIDITY_MS })
+	} catch {
+		throw new TokenSyncError('Pi could not refresh Codex. Retry on the publishing Mac. If it still fails, run /login openai-codex there. No values were printed')
+	}
+	const refreshed = readAuth()[PROVIDER]
+	if (!ownsSignIn(refreshed))
+		throw new TokenSyncError('Pi did not retain the publishing Mac sign-in')
+	if (refreshed.expires <= Date.now() + PUBLISH_VALIDITY_MS)
+		throw new TokenSyncError(`Pi kept a Codex token valid for less than ${PUBLISH_VALIDITY_MS / 60_000} minutes. Retry on the publishing Mac`)
+	return publication({ access: refreshed.access, accountId: refreshed.accountId, expires: refreshed.expires })
+}
+
+function options() {
+	const usage = new TokenSyncError('Usage: pi-token-sync --publish [--job]')
+	let values
+	try {
+		values = parseArgs({ options: { publish: { type: 'boolean' }, job: { type: 'boolean' } } }).values
+	} catch {
+		throw usage
+	}
+	if (!values.publish) throw usage
+	return values
+}
+
+async function publish() {
+	if (options().job) loadJobCredentials()
+	const vault = await openVault()
+	const previous = await getSecret(vault)
+	if (previous.status !== HTTP_OK && previous.status !== HTTP_NOT_FOUND)
+		throw new TokenSyncError(`Infisical refused the publication target: HTTP ${previous.status}`)
+	const entry = await freshPublication()
+	const written = await writeSecret(vault, previous.status === HTTP_NOT_FOUND ? 'POST' : 'PATCH', JSON.stringify(entry))
+	if (written.status !== HTTP_OK) throw new TokenSyncError(`Infisical refused the publication: HTTP ${written.status}`)
+	const verified = await readPublication(vault)
+	if (JSON.stringify(verified) !== JSON.stringify(entry))
+		throw new TokenSyncError('The Codex publication did not match on readback. Retry the publisher')
+	log(`${PROVIDER}: published and verified, expires ${new Date(entry.expires).toISOString()}`)
+}
+
+try {
+	await publish()
+} catch (error) {
+	fail(error)
+}

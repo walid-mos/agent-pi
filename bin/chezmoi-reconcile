@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Direction rule: only on the publisher is the live config the truth, so only there does a target deleted live leave the chezmoi source.
+set -euo pipefail
+
+role_file="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/dotfiles.json"
+[[ -f "$role_file" ]] || exit 0
+
+role="$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).role; process.stdout.write(String(r))' "$role_file" 2>/dev/null)" || {
+  echo "chezmoi-reconcile: cannot read a role from $role_file (needs node and a JSON object, see README.md \"Dotfiles roles\")" >&2
+  exit 1
+}
+case "$role" in
+  publisher) ;;
+  consumer) exit 0 ;;
+  *)
+    echo "chezmoi-reconcile: role in $role_file must be publisher or consumer, got '$role'" >&2
+    exit 1
+    ;;
+esac
+
+command -v chezmoi >/dev/null 2>&1 || exit 0
+
+dest="$(chezmoi execute-template '{{ .chezmoi.destDir }}')"
+
+deleted=()
+while IFS= read -r line; do
+  [[ "${line:0:1}" == "D" ]] || continue
+  deleted+=("${line:3}")
+done < <(chezmoi status | sort)
+
+kept=()
+for target in ${deleted[@]+"${deleted[@]}"}; do
+  nested=0
+  for parent in ${kept[@]+"${kept[@]}"}; do
+    [[ "$target" == "$parent/"* ]] && { nested=1; break; }
+  done
+  (( nested )) || kept+=("$target")
+done
+
+for target in ${kept[@]+"${kept[@]}"}; do
+  if chezmoi forget --force "$dest/$target" >/dev/null 2>&1; then
+    echo "chezmoi-reconcile: forgot $target"
+  else
+    echo "chezmoi-reconcile: could not forget $target" >&2
+  fi
+done

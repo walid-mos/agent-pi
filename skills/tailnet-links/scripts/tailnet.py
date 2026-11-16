@@ -1,0 +1,99 @@
+import fcntl
+import functools
+import json
+import shutil
+import subprocess
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+CLI_CANDIDATES = (
+    "tailscale",
+    "/opt/homebrew/bin/tailscale",
+    "/usr/local/bin/tailscale",
+    "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+)
+COMMAND_TIMEOUT_SECONDS = 30
+POLL_SECONDS = 0.25
+LOCK_SECONDS = 60
+CONNECTED_STATE = "Running"
+STATE = Path.home() / ".local/state/tailnet-link"
+SETUP_HINT = "Run: tailnet-link setup"
+
+
+class LinkError(Exception):
+    pass
+
+
+def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS, empty_exits=()):
+    try:
+        result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise LinkError("Command did not complete: " + " ".join(arguments) + ". " + str(error)) from error
+    # A command that finds nothing exits like one that failed, and only the one that failed says why.
+    is_empty = result.returncode in empty_exits and not result.stderr.strip()
+    if result.returncode and not is_empty:
+        raise LinkError("Command failed: " + " ".join(arguments) + "\n" + result.stderr.strip())
+    return result.stdout
+
+
+def wait_until(is_ready, seconds, failure):
+    deadline = time.monotonic() + seconds
+    while not is_ready():
+        if time.monotonic() >= deadline:
+            raise LinkError(failure)
+        time.sleep(POLL_SECONDS)
+
+
+def cli():
+    found = next(filter(None, map(shutil.which, CLI_CANDIDATES)), None)
+    if not found:
+        raise LinkError("No tailscale CLI on this machine. " + SETUP_HINT)
+    return found
+
+
+def tailscale(*arguments):
+    return run([cli(), *arguments])
+
+
+def status(*flags):
+    return json.loads(tailscale("status", "--json", *flags))
+
+
+def read_host():
+    own = status("--peers=false")
+    name = own.get("Self", {}).get("DNSName", "").rstrip(".")
+    # A machine the tailnet dropped keeps reporting Running and its old name, with a sign-in URL pending.
+    is_connected = own.get("BackendState") == CONNECTED_STATE and not own.get("AuthURL")
+    if not is_connected or not name:
+        raise LinkError("This machine is not connected to the tailnet. " + SETUP_HINT)
+    return name
+
+
+# A command names its machine many times and ends within seconds, so it asks once. A service that stays up asks each time.
+host = functools.lru_cache(maxsize=None)(read_host)
+
+
+def serve_config():
+    return json.loads(tailscale("serve", "status", "--json"))
+
+
+def handlers(config, authority):
+    return config.get("Web", {}).get(authority, {}).get("Handlers") or {}
+
+
+def has_locked(handle):
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
+@contextmanager
+def serve_lock():
+    STATE.mkdir(parents=True, exist_ok=True)
+    with open(STATE / "serve.lock", "w") as handle:
+        wait_until(lambda: has_locked(handle), LOCK_SECONDS, "Other tailnet-link commands kept this machine's Serve configuration locked for "
+                   + str(LOCK_SECONDS) + " seconds. Run this again once they have ended.")
+        yield

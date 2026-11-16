@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+import { AUTH_FILE, PROVIDER, fail, log, openVault, ownsSignIn, readAuth, readPublication, writePrivately } from './lib/pi-token.mjs';
+import { serializeJson } from './lib/setup/json-object.ts';
+
+function apply(entry) {
+  const auth = readAuth();
+  const current = auth[PROVIDER];
+  const hours = ((entry.expires - Date.now()) / 3.6e6).toFixed(1);
+  if (ownsSignIn(current)) return log(`${PROVIDER}: this machine has its own sign-in, nothing changed`);
+  if (current?.type === "oauth" && current.access === entry.access) return log(`${PROVIDER}: already current, valid ${hours} h`);
+  auth[PROVIDER] = { type: "oauth", access: entry.access, refresh: "", expires: entry.expires, accountId: entry.accountId };
+  writePrivately(AUTH_FILE, serializeJson(auth));
+  log(`${PROVIDER}: updated, valid ${hours} h`);
+}
+
+try {
+  apply(await readPublication(await openVault()));
+} catch (error) {
+  fail(error);
+}

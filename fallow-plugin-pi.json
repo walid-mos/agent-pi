@@ -1,0 +1,16 @@
+{
+	"name": "pi-agent-runtime",
+	"enablers": ["@earendil-works/pi-coding-agent"],
+	"entryPointRole": "support",
+	"entryPoints": [
+		"bin/setup.ts",
+		"bin/lib/pi-token.mjs",
+		"extensions/*/*/index.ts"
+	],
+	"usedClassMembers": [
+		{ "implements": "Component", "members": ["invalidate"] }
+	],
+	"usedExports": [
+		{ "pattern": "extensions/*/*/index.ts", "exports": ["default"] }
+	]
+}

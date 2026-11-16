@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+import { spawnSync } from 'node:child_process'
+import { chmodSync, closeSync, mkdirSync, openSync, realpathSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { JOB_INTERVAL_SECONDS, TokenSyncError, fail, jobCredentials, log, saveJobCredentials, writePrivately } from './lib/pi-token.mjs'
+
+const LABEL = 'fr.nextnode.pi-token-sync'
+const LAUNCHCTL = '/bin/launchctl'
+const LOG_DIRECTORY = join(homedir(), 'Library', 'Logs', LABEL)
+const PLIST = join(homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`)
+const xml = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;')
+
+function run(recovery, executable, arguments_, options = {}) {
+	const result = spawnSync(executable, arguments_, { stdio: ['ignore', 'pipe', 'inherit'], ...options })
+	if (result.error || result.status !== 0)
+		throw new TokenSyncError(`Mac publisher installation failed. ${recovery}. The failing command's own message is above`)
+}
+
+function prepareLogs() {
+	mkdirSync(LOG_DIRECTORY, { recursive: true, mode: 0o700 })
+	const paths = ['stdout.log', 'stderr.log'].map(name => join(LOG_DIRECTORY, name))
+	for (const path of paths) {
+		closeSync(openSync(path, 'a', 0o600))
+		chmodSync(path, 0o600)
+	}
+	return paths
+}
+
+function plist(publisher, stdout, stderr) {
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>${LABEL}</string>
+<key>ProgramArguments</key><array><string>${xml(process.execPath)}</string><string>${xml(publisher)}</string><string>--publish</string><string>--job</string></array>
+<key>WorkingDirectory</key><string>${xml(homedir())}</string>
+<key>StartInterval</key><integer>${JOB_INTERVAL_SECONDS}</integer>
+<key>RunAtLoad</key><true/>
+<key>StandardOutPath</key><string>${xml(stdout)}</string>
+<key>StandardErrorPath</key><string>${xml(stderr)}</string>
+</dict></plist>
+`
+}
+
+function install() {
+	if (process.platform !== 'darwin' || process.argv.length !== 2)
+		throw new TokenSyncError('Usage on the publishing Mac: node ~/.pi/agent/bin/pi-token-sync-install')
+	const target = `gui/${process.getuid()}`
+	const service = `${target}/${LABEL}`
+	const credentials = jobCredentials()
+	const loaded = spawnSync(LAUNCHCTL, ['print', service], { stdio: 'ignore' })
+	if (loaded.status === 0) run(`launchctl bootout ${service} failed, unload the old job, then retry the installer`, LAUNCHCTL, ['bootout', service])
+	const publisher = realpathSync(fileURLToPath(new URL('./pi-token-sync', import.meta.url)))
+	saveJobCredentials(credentials)
+	run('Run pi-token-sync --publish from an authorized shell, then retry the installer', process.execPath, [publisher, '--publish', '--job'], {
+		cwd: homedir(),
+		env: { HOME: homedir(), PATH: '/usr/bin:/bin:/usr/sbin:/sbin' },
+	})
+	const [stdout, stderr] = prepareLogs()
+	writePrivately(PLIST, plist(publisher, stdout, stderr))
+	run(`plutil -lint ${PLIST} rejected the generated job`, '/usr/bin/plutil', ['-lint', PLIST])
+	run(`launchctl bootstrap ${target} ${PLIST} failed, check launchctl print ${service}`, LAUNCHCTL, ['bootstrap', target, PLIST])
+	log(`${LABEL}: first publication verified, hourly job installed. Check launchctl print ${service}`)
+}
+
+try {
+	install()
+} catch (error) {
+	fail(error)
+}
