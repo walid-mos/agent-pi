@@ -136,7 +136,7 @@ function comparisons(spec: RoutingSpec, group: StoredGroup): Comparison[] {
 	return [
 		{
 			name: 'members',
-			stored: group.members.join(','),
+			stored: (group.members ?? []).join(','),
 			expected: spec.members.join(','),
 		},
 		{

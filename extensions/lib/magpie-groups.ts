@@ -9,7 +9,10 @@ import type { Static } from 'typebox'
 
 const GroupsFileSchema = Type.Object({
 	groups: Type.Array(
-		Type.Object({ id: Type.String(), members: Type.Array(Type.String()) }),
+		Type.Object({
+			id: Type.String(),
+			members: Type.Optional(Type.Array(Type.String())),
+		}),
 	),
 })
 

@@ -90,6 +90,15 @@ test('distinguishes a missing group from one without a Codex member', context =>
 	)
 })
 
+test('reads a group with no members field as having no Codex member', context => {
+	const path = providersFile(context)
+	writeFileSync(path, JSON.stringify({ groups: [{ id: 'expert' }] }))
+	assert.throws(
+		() => resolveCodexGroup('expert', path),
+		/group expert has no Codex member/,
+	)
+})
+
 for (const member of [
 	'codex/gpt-6.2-sol',
 	'codex/gpt-6.2-sol:ultra',

@@ -38,7 +38,7 @@ export function resolveCodexGroup(
 			{ cause: error },
 		)
 	}
-	const member = stored.members.find(candidate =>
+	const member = stored.members?.find(candidate =>
 		candidate.startsWith(CODEX_MEMBER_PREFIX),
 	)
 	if (!member)
