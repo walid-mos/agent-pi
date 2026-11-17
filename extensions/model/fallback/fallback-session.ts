@@ -204,8 +204,8 @@ export class FallbackSession {
 	/** The chain after `failedModel`, ordered and without unreachable models. */
 	candidatesAfter(
 		failedModel: string | undefined,
-		now: number,
 		chain: readonly string[],
+		now: number,
 	): string[] {
 		return this.cooldowns.candidatesAfter(failedModel, chain, now)
 	}

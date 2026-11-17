@@ -1,27 +1,16 @@
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { readCheckedJson } from './checked-json.ts'
+import { errorText } from './error-text.ts'
+import { magpieProvidersPath, readMagpieGroups } from './magpie-groups.ts'
 
 import type { Static } from 'typebox'
+import type { MagpieGroup } from './magpie-groups.ts'
 
 export const CODEX_GROUP_PREFIX = 'codex-group/'
 const CODEX_MEMBER_PREFIX = 'codex/'
-const GroupsSchema = Type.Object({
-	groups: Type.Array(
-		Type.Object({ id: Type.String(), members: Type.Array(Type.String()) }),
-	),
-})
-const EffortSchema = Type.Union([
-	Type.Literal('low'),
-	Type.Literal('medium'),
-	Type.Literal('high'),
-	Type.Literal('xhigh'),
-	Type.Literal('max'),
-])
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+const EffortSchema = Type.Union(EFFORTS.map(effort => Type.Literal(effort)))
 
 type CodexSelection = {
 	provider: 'openai-codex'
@@ -29,17 +18,13 @@ type CodexSelection = {
 	thinkingLevel: Static<typeof EffortSchema>
 }
 
-export function magpieProvidersPath(home = homedir()): string {
-	return join(home, '.config', 'magpie', 'providers.json')
-}
-
-function readGroups(group: string, path: string): Static<typeof GroupsSchema> {
+function readGroups(group: string, path: string): MagpieGroup[] {
 	try {
-		return readCheckedJson(path, GroupsSchema)
-	} catch {
-		// Magpie stores provider keys beside groups, so parser errors must not escape.
+		return readMagpieGroups(path)
+	} catch (error) {
 		throw new Error(
-			`Cannot resolve Codex group ${group}: read valid Magpie groups from ${path}. Restore or seed the Magpie configuration.`,
+			`Cannot resolve Codex group ${group}: ${errorText(error)}`,
+			{ cause: error },
 		)
 	}
 }
@@ -48,7 +33,7 @@ export function resolveCodexGroup(
 	group: string,
 	path = magpieProvidersPath(),
 ): CodexSelection {
-	const { groups } = readGroups(group, path)
+	const groups = readGroups(group, path)
 	const stored = groups.find(candidate => candidate.id === group)
 	if (!stored)
 		throw new Error(
@@ -71,7 +56,7 @@ export function resolveCodexGroup(
 		!Value.Check(EffortSchema, thinkingLevel)
 	)
 		throw new Error(
-			`Magpie configuration ${path}: group ${group} needs a non-Anthropic Codex model with a Pi-supported effort (low, medium, high, xhigh, max).`,
+			`Magpie configuration ${path}: group ${group} needs a non-Anthropic Codex model with a Pi-supported effort (${EFFORTS.join(', ')}).`,
 		)
 	return { provider: 'openai-codex', id, thinkingLevel }
 }

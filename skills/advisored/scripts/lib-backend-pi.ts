@@ -9,8 +9,8 @@ import { describeFailure, runProcess } from './lib-process.ts'
 import type { ReplyCheck } from './lib-backend-claude.ts'
 import type { AdvisorState } from './lib-state.ts'
 
-export function defaultPiAdvisorModel(providersPath?: string): string {
-	const model = resolveCodexGroup('expert', providersPath)
+export function defaultPiAdvisorModel(): string {
+	const model = resolveCodexGroup('expert')
 	return `${model.provider}/${model.id}:${model.thinkingLevel}`
 }
 export const PI_SESSION_DIRECTORY = 'pi'
