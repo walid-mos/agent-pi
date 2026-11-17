@@ -15,7 +15,7 @@ export function defaultPiAdvisorModel(): string {
 }
 export const PI_SESSION_DIRECTORY = 'pi'
 
-export const PI_ISOLATION = [
+const PI_ISOLATION = [
 	'--no-extensions',
 	'--no-mcp',
 	'--no-skills',
@@ -36,12 +36,12 @@ const THINKING_LEVELS = new Set([
 const LOOKUP_TIMEOUT_MS = 120_000
 const COLUMN_SEPARATOR = /\s{2,}/
 
-export type ModelSelector = {
+type ModelSelector = {
 	identity: string
 	thinking: string | null
 }
 
-export function splitThinkingSuffix(selector: string): ModelSelector {
+function splitThinkingSuffix(selector: string): ModelSelector {
 	const separator = selector.lastIndexOf(':')
 	if (separator === -1) return { identity: selector, thinking: null }
 	const suffix = selector.slice(separator + 1)

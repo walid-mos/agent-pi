@@ -1,13 +1,8 @@
-export const VERDICTS = [
-	'PROCEED',
-	'REVISE',
-	'NEEDS_EVIDENCE',
-	'READY',
-] as const
+const VERDICTS = ['PROCEED', 'REVISE', 'NEEDS_EVIDENCE', 'READY'] as const
 
 export type Verdict = (typeof VERDICTS)[number]
 
-export type VerdictLine = {
+type VerdictLine = {
 	verdict: Verdict
 	fingerprint: string | null
 	checkpoint: string | null
@@ -24,7 +19,7 @@ function isVerdict(candidate: string): candidate is Verdict {
 	return VERDICTS.some(verdict => verdict === candidate)
 }
 
-export function parseVerdictLine(replyText: string): VerdictLine | undefined {
+function parseVerdictLine(replyText: string): VerdictLine | undefined {
 	const firstLine = replyText.split('\n').find(line => line.trim())
 	if (!firstLine) return undefined
 	const word = VERDICT_WORD.exec(firstLine)?.[1]

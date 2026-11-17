@@ -22,7 +22,7 @@ export function magpieProvidersPath(home = homedir()): string {
 	return join(home, '.config', 'magpie', 'providers.json')
 }
 
-export function readMagpieGroups(path = magpieProvidersPath()): MagpieGroup[] {
+function readMagpieGroups(path = magpieProvidersPath()): MagpieGroup[] {
 	try {
 		return readCheckedJson(path, GroupsFileSchema).groups
 	} catch {

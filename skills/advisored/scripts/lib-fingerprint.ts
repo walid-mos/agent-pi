@@ -32,7 +32,7 @@ function digestPath(path: string): string {
 	return `${mode} ${sha256Hex(readFileSync(path))}`
 }
 
-export function gitOutput(
+function gitOutput(
 	repo: string,
 	gitArguments: readonly string[],
 ): string | undefined {
