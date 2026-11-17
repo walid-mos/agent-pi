@@ -4,6 +4,7 @@ import json
 import math
 import re
 
+from .errors import ExportInputError
 from .normalize import MAX_NUMBER, TOKEN_FIELDS, numeric, opaque, text, timestamp, unknown_cost
 from .storage import MAX_LINE_BYTES, rewrite_event
 
@@ -23,14 +24,11 @@ def csv_instant(value):
     if not isinstance(value, str):
         return None
     candidate = value.strip().replace(" ", "T", 1)
+    if OFFSETLESS.fullmatch(candidate):
+        raise ExportInputError("CSV column time has shape YYYY-MM-DD[T or space]HH:MM:SS[.fraction] "
+                               "without a timezone. Supply Z or a numeric offset (+HH:MM or -HH:MM).")
     try:
         return timestamp(candidate)
-    except ValueError:
-        pass
-    if not OFFSETLESS.fullmatch(candidate):
-        return None
-    try:
-        return timestamp(candidate + "Z")
     except ValueError:
         return None
 
@@ -89,6 +87,9 @@ def load_estimates(database, host, run):
 
 
 def insert_estimate(database, host, raw):
+    row = {**csv_row(raw), "t": csv_instant(raw.get(CSV_FIELDS["t"]))}
+    if row["t"] is None or any(row[field] is None for field in NUMERIC_FIELDS):
+        return
     if raw["cost_usd"] in (None, ""):
         return
     try:
@@ -96,9 +97,6 @@ def insert_estimate(database, host, raw):
     except ValueError:
         return
     if not math.isfinite(amount) or not 0 <= amount <= MAX_NUMBER:
-        return
-    row = csv_row(raw)
-    if any(row[field] is None for field in NUMERIC_FIELDS):
         return
     key = estimate_key(row, host)
     if key is None:

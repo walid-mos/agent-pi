@@ -6,6 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .catalog import bind, catalog_labels, relabel
+from .errors import ExportInputError
 from .estimates import apply_estimates
 from .normalize import timestamp
 from .publish import MAX_REPORT_DAYS, publish, read_manifest
@@ -100,6 +101,8 @@ def attempt_export(fields):
         return export_usage(settings(**fields)), None
     except BlockingIOError:
         return None, BUSY
+    except ExportInputError as failure:
+        return None, f"usage-export: {failure}"
     except Exception:
         return None, FAILED
 
