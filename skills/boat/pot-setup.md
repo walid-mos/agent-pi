@@ -10,7 +10,7 @@ Load the Infisical skill and use the machine-authenticated shell. Run:
 ~/.pi/agent/skills/boat/scripts/pot-access POT
 ```
 
-The script prepares one Boat environment for that pot through `workspace setup`, creates a scoped expiring key, and stores it with the environment name under the pot's vault project. It prints only public metadata. Its constants own the key lifetime, actions and vault location. Rerunning replaces the key and revokes earlier keys with the same pot name after the replacement is stored.
+The script prepares one Boat environment for that pot through `workspace setup`, creates a scoped expiring key, and stores it with the environment name under the pot's vault project. It prints only public metadata. Its constants own the key lifetime, actions and vault location. Rerunning replaces the key and revokes earlier keys with the same pot name after the replacement is stored. If the environment write then fails, the stored new key survives and earlier keys are still revoked. The script reports the incomplete rotation because a failed write may have committed. Reconcile the printed vault path and retry. A failed first key write instead revokes the new key and leaves previous keys untouched.
 
 Add exactly the printed names and path to the pot's `onRequest.boat` group in the Mac's sandbox configuration. From the agent-sandbox checkout, inspect `bin/vm-config` and its callees, then run `SANDBOX=POT ./bin/vm-config` only when they rewrite configuration without restarting the session. Do not restart a pot for this setup. The next broker request reads the group.
 
