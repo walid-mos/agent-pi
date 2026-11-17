@@ -20,17 +20,21 @@ def token_count(value):
 
 
 def snapshot_counts(snapshot):
-    days = {}
+    days, seen = {}, set()
     with snapshot.open("rb") as stream:
         for row in csv_rows(stream):
-            add_row(days, row)
+            add_row(days, seen, row)
     return days
 
 
-def add_row(days, row):
+def add_row(days, seen, row):
     stamp = csv_instant(row.get(CSV_FIELDS["t"]))
     if stamp is None or (row.get(CSV_FIELDS["kind"]) or "") not in KINDS:
         return
+    identity = tuple(row.get(column) for column in CSV_FIELDS.values())
+    if identity in seen:
+        return
+    seen.add(identity)
     counts = days.setdefault(stamp[:10], empty_counts())
     counts["requests"] += 1
     for kind, column in TOKEN_COLUMNS.items():

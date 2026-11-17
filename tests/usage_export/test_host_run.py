@@ -87,6 +87,15 @@ class HostRunTests(HostCase):
         self.assertEqual(self.receipt()["reconcile"],
                          [{"day": "2026-11-17", "matches": True, "csv": TOTALS, "export": TOTALS}])
 
+    def test_a_duplicated_ledger_line_does_not_count_twice(self):
+        first = self.row(t="2026-11-16T09:00:00Z", response_id="first")
+        repeated = self.row(t="2026-11-17T10:00:00Z", response_id="work")
+        self.append(first, repeated, repeated)
+        self.install_magpie([first, repeated, repeated])
+        entry, = self.receipt()["reconcile"]
+        self.assertEqual((entry["day"], entry["matches"]), ("2026-11-17", True))
+        self.assertEqual((entry["csv"]["requests"], entry["export"]["requests"]), (1, 1))
+
     def test_a_closed_day_with_a_row_missing_from_the_export_exits_non_zero(self):
         rows = self.ledger_rows()
         self.append(*rows)

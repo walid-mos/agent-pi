@@ -84,7 +84,7 @@ A run does four things:
 
 1. When `magpie` is on `PATH` or at `~/.local/bin/magpie`, it writes `magpie usage --csv all` into a private temporary file, mode 0600, outside the state, output and ledger folders. It passes that file with `--estimates`, and its own clock with `--price-snapshot-at`. The file is removed on every exit, a termination signal included. Without `magpie`, or when `magpie` fails, the export runs without estimates.
 2. It runs the export.
-3. It reconciles each closed UTC day of the window that the snapshot covers: CSV rows against exported workload and routing-overhead events, as requests and tokens by type. `model_list` rows are in neither. A covered day comes after the first day of the snapshot and after the first exported day, because either side's first day can be truncated. It has also been closed for an hour, so a request logged after the snapshot near midnight cannot make it differ.
+3. It reconciles each closed UTC day of the window that the snapshot covers: CSV rows against exported workload and routing-overhead events, as requests and tokens by type. `model_list` rows, and rows whose kind the ledger rejects, are in neither count. A row repeated verbatim counts once, as the export collapses identical ledger lines into one event. A covered day comes after the first day of the snapshot and after the first exported day, because either side's first day can be truncated. It has also been closed for an hour, so a request logged after the snapshot near midnight cannot make it differ.
 4. It prints one JSON receipt on one line:
 
 ```json
