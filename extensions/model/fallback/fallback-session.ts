@@ -14,6 +14,7 @@ import {
 	isDeterministicFailure,
 } from './taxonomy.ts'
 
+import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import type { AgentActivityOutcome } from '@earendil-works/pi-coding-agent'
 import type { ModelFallbackConfig } from './config.ts'
 import type { RetryPlan } from './retry-budget.ts'
@@ -46,6 +47,7 @@ export class FallbackSession {
 	private config: ModelFallbackConfig
 	private cooldowns = new ModelCooldowns()
 	private restoreTarget: string | undefined
+	private originalThinkingLevel: ModelThinkingLevel | undefined
 	private isOnFallback = false
 	private failure: FailureSighting | undefined
 	private isCompacting = false
@@ -63,6 +65,7 @@ export class FallbackSession {
 		this.config = config
 		this.cooldowns.reset()
 		this.restoreTarget = undefined
+		this.originalThinkingLevel = undefined
 		this.isOnFallback = false
 		this.failure = undefined
 		this.isCompacting = false
@@ -199,12 +202,12 @@ export class FallbackSession {
 	}
 
 	/** The chain after `failedModel`, ordered and without unreachable models. */
-	candidatesAfter(failedModel: string | undefined, now: number): string[] {
-		return this.cooldowns.candidatesAfter(
-			failedModel,
-			this.config.chain,
-			now,
-		)
+	candidatesAfter(
+		failedModel: string | undefined,
+		chain: readonly string[],
+		now: number,
+	): string[] {
+		return this.cooldowns.candidatesAfter(failedModel, chain, now)
 	}
 
 	/** A model that just failed stays out of the chain for its cooldown TTL. */
@@ -221,7 +224,11 @@ export class FallbackSession {
 	 * Records a failover: the streak remembers the model the session started
 	 * from, so a clean run can return there.
 	 */
-	markFallbackActive(failedModel: string | undefined): void {
+	markFallbackActive(
+		failedModel: string | undefined,
+		thinkingLevel: ModelThinkingLevel,
+	): void {
+		this.originalThinkingLevel ??= thinkingLevel
 		this.restoreTarget ??= failedModel
 		this.isOnFallback = true
 	}
@@ -231,9 +238,14 @@ export class FallbackSession {
 		return this.restoreTarget
 	}
 
+	thinkingLevelToRestore(): ModelThinkingLevel | undefined {
+		return this.originalThinkingLevel
+	}
+
 	/** Nothing is on a fallback anymore: the user took over, or we restored. */
 	clearFallback(): void {
 		this.restoreTarget = undefined
+		this.originalThinkingLevel = undefined
 		this.isOnFallback = false
 	}
 

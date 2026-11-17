@@ -57,8 +57,8 @@ export type AdvisorState = {
 }
 
 export const STATE_VERSION = 2
-export const STATE_FILE = 'state.json'
-export const JSON_INDENT = 2
+const STATE_FILE = 'state.json'
+const JSON_INDENT = 2
 const PRIVATE_FILE_MODE = 0o600
 
 const STATE_STRING_KEYS = [
@@ -89,7 +89,7 @@ export function sha256Hex(content: string | Buffer): string {
 	return createHash('sha256').update(content).digest('hex')
 }
 
-export function statePath(stateDirectory: string): string {
+function statePath(stateDirectory: string): string {
 	return join(stateDirectory, STATE_FILE)
 }
 

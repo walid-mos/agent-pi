@@ -15,8 +15,13 @@
 
 import { FALLBACK_STATUS_KEY as STATUS_KEY } from '#lib/model-fallback/status.ts'
 
-import { modelReference, parseModelReference } from './chain.ts'
+import { modelReference } from './chain.ts'
 import { continuationAfterFailover } from './fallback-message.ts'
+import {
+	findChainModel,
+	levelForTarget,
+	resolveFallbackChain,
+} from './targets.ts'
 
 import type {
 	BoundaryResult,
@@ -24,15 +29,6 @@ import type {
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
 import type { FallbackSession, FailureSighting } from './fallback-session.ts'
-
-type RegistryModel = NonNullable<
-	ReturnType<ExtensionContext['modelRegistry']['find']>
->
-
-interface FailoverTarget {
-	reference: string
-	model: RegistryModel
-}
 
 /** The session's model as a chain reference (`provider/modelId`). */
 export function currentModelReference(
@@ -42,35 +38,16 @@ export function currentModelReference(
 	return modelReference(ctx.model)
 }
 
-/** Ends the fallback: the session keeps its model and loses the status line. */
+/** Ends the fallback: the saved thinking level returns, the status line goes. */
 export function endFallback(
+	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	session: FallbackSession,
 ): void {
+	const thinkingLevel = session.thinkingLevelToRestore()
+	if (thinkingLevel) pi.setThinkingLevel(thinkingLevel)
 	session.clearFallback()
 	ctx.ui.setStatus(STATUS_KEY, undefined)
-}
-
-function findModel(
-	ctx: ExtensionContext,
-	reference: string,
-): RegistryModel | undefined {
-	const parsed = parseModelReference(reference)
-	if (!parsed) return undefined
-	return ctx.modelRegistry.find(parsed.provider, parsed.modelId)
-}
-
-/** The first candidate this machine can actually run right now. */
-function resolveTarget(
-	ctx: ExtensionContext,
-	candidates: readonly string[],
-): FailoverTarget | undefined {
-	for (const reference of candidates) {
-		const model = findModel(ctx, reference)
-		if (!model || !ctx.modelRegistry.hasConfiguredAuth(model)) continue
-		return { reference, model }
-	}
-	return undefined
 }
 
 /** Announces a switch the user has to know about: it changed their provider. */
@@ -93,9 +70,9 @@ async function returnToOriginal(
 	session: FallbackSession,
 	reference: string,
 ): Promise<boolean> {
-	const model = findModel(ctx, reference)
+	const model = findChainModel(ctx.modelRegistry, reference)
 	if (!model) {
-		endFallback(ctx, session)
+		endFallback(pi, ctx, session)
 		return false
 	}
 	session.trackSwitch(reference)
@@ -103,7 +80,7 @@ async function returnToOriginal(
 		session.forgetSwitch(reference)
 		return false
 	}
-	endFallback(ctx, session)
+	endFallback(pi, ctx, session)
 	return true
 }
 
@@ -139,24 +116,46 @@ async function abandonChain(
 	)
 }
 
+interface Switched {
+	reference: string
+}
+
 async function switchToNextModel(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	session: FallbackSession,
 	failure: FailureSighting,
-): Promise<string | undefined> {
+): Promise<Switched | undefined> {
+	const previousThinkingLevel = pi.getThinkingLevel()
 	const now = Date.now()
 	session.coolDown(failure, now)
-	const target = resolveTarget(
-		ctx,
-		session.candidatesAfter(failure.model, now),
+	const targets = resolveFallbackChain(
+		session.currentConfig().chain,
+		ctx.modelRegistry,
+		message => ctx.ui.notify(message, 'warning'),
 	)
+	const [next] = session.candidatesAfter(
+		failure.model,
+		targets.map(target => target.reference),
+		now,
+	)
+	const target = targets.find(candidate => candidate.reference === next)
 	if (!target) {
 		await abandonChain(pi, ctx, session, failure)
 		return undefined
 	}
 	session.trackSwitch(target.reference)
-	if (await pi.setModel(target.model)) return target.reference
+	if (await pi.setModel(target.model)) {
+		pi.setThinkingLevel(
+			levelForTarget(
+				target.thinkingLevel,
+				session.thinkingLevelToRestore(),
+				previousThinkingLevel,
+			),
+		)
+		session.markFallbackActive(failure.model, previousThinkingLevel)
+		return { reference: target.reference }
+	}
 	session.forgetSwitch(target.reference)
 	ctx.ui.notify(
 		`fallback: no credentials configured for ${target.reference}.`,
@@ -174,11 +173,11 @@ export async function performFailover(
 ): Promise<BoundaryResult | undefined> {
 	if (ctx.signal?.aborted) return undefined
 	const sessionId = ctx.sessionManager.getSessionId()
-	const candidate = await switchToNextModel(pi, ctx, session, failure)
-	if (!candidate) return undefined
+	const switched = await switchToNextModel(pi, ctx, session, failure)
+	if (!switched) return undefined
 	if (ctx.signal?.aborted || sessionId !== ctx.sessionManager.getSessionId())
 		return undefined
-	session.markFallbackActive(failure.model)
+	const candidate = switched.reference
 	reportFallback(ctx, failure, candidate)
 	return {
 		entries: ctx.hasPendingMessages()
@@ -201,9 +200,9 @@ export async function failoverAfterAbort(
 	failure: FailureSighting,
 ): Promise<void> {
 	const sessionId = ctx.sessionManager.getSessionId()
-	const candidate = await switchToNextModel(pi, ctx, session, failure)
-	if (!candidate || sessionId !== ctx.sessionManager.getSessionId()) return
-	session.markFallbackActive(failure.model)
+	const switched = await switchToNextModel(pi, ctx, session, failure)
+	if (!switched || sessionId !== ctx.sessionManager.getSessionId()) return
+	const candidate = switched.reference
 	reportFallback(ctx, failure, candidate)
 	pi.sendMessage(continuationAfterFailover(ctx, failure, candidate), {
 		triggerTurn: true,
@@ -218,7 +217,7 @@ export async function restoreOriginal(
 ): Promise<void> {
 	const reference = session.restoreModel()
 	if (!reference || reference === currentModelReference(ctx)) {
-		endFallback(ctx, session)
+		endFallback(pi, ctx, session)
 		return
 	}
 	// Restoring a model that is still cooling down would flap straight back

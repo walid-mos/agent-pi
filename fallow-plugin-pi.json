@@ -5,7 +5,8 @@
 	"entryPoints": [
 		"bin/setup.ts",
 		"bin/lib/pi-token.mjs",
-		"extensions/*/*/index.ts"
+		"extensions/*/*/index.ts",
+		"skills/advisored/scripts/advisor.ts"
 	],
 	"usedClassMembers": [
 		{ "implements": "Component", "members": ["invalidate"] },

@@ -8,7 +8,7 @@
 	"rateLimitRetryDelayMs": 20000,
 	"exclusionTtlMs": 300000,
 	"chain": [
-		"openai-codex/gpt-6.1-sol",
+		"codex-group/deep",
 		"inco/glm-5.3-flash:fast"
 	]
 }

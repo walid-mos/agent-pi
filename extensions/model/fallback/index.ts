@@ -19,7 +19,7 @@
  * Module structure: `config.ts` (chain + toggles, persisted), `taxonomy.ts`
  * (status/error classification), `retry-budget.ts` (retry credits),
  * `retry.ts` (the bounded wait and failed-attempt omission), `chain.ts` (candidate
- * ordering), `cooldowns.ts` (which models the chain may not move to),
+ * ordering), `targets.ts` (the usable chain targets), `cooldowns.ts` (which models the chain may not move to),
  * `fallback-session.ts` (the per-session decision
  * state), `failover.ts` (the model moves and their status line),
  * `gateway-watch.ts` / `gateway-liveness.ts` (abort a request the Magpie
@@ -111,13 +111,13 @@ function loadConfiguredSession(ctx: ExtensionContext): ModelFallbackConfig {
 function watchSession(pi: ExtensionAPI, session: FallbackSession): void {
 	pi.on('session_start', (_event, ctx) => {
 		session.startSession(loadConfiguredSession(ctx))
-		endFallback(ctx, session)
+		endFallback(pi, ctx, session)
 		// Pi cannot unregister a built-in command, so the menu is filtered
 		// instead: the unified surface is the one the user sees.
 		ctx.ui.addAutocompleteProvider(createModelCommandFilter)
 	})
 	pi.on('session_shutdown', (_event, ctx) => {
-		endFallback(ctx, session)
+		endFallback(pi, ctx, session)
 	})
 }
 
@@ -219,7 +219,7 @@ function watchBoundaries(pi: ExtensionAPI, session: FallbackSession): void {
 function watchModelSelection(pi: ExtensionAPI, session: FallbackSession): void {
 	pi.on('model_select', (event, ctx) => {
 		if (session.consumeSwitch(modelReference(event.model))) return
-		endFallback(ctx, session)
+		endFallback(pi, ctx, session)
 	})
 }
 

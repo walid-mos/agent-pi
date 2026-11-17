@@ -1,6 +1,6 @@
 export type JsonRecord = Record<string, unknown>
 
-export function toRecord(candidate: unknown): JsonRecord | undefined {
+function toRecord(candidate: unknown): JsonRecord | undefined {
 	if (
 		typeof candidate !== 'object' ||
 		candidate === null ||

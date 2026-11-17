@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { chmodSync, copyFileSync } from 'node:fs'
-import { homedir, hostname } from 'node:os'
+import { hostname } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -9,12 +9,14 @@ import { Value } from 'typebox/value'
 
 import { readCheckedJson } from '#lib/checked-json.ts'
 import { errorText } from '#lib/error-text.ts'
+import { findMagpieGroup, magpieProvidersPath } from '#lib/magpie-groups.ts'
 import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 
 import type { Static } from 'typebox'
+import type { MagpieGroup } from '#lib/magpie-groups.ts'
 import type { RoutingRule, RoutingSpec } from './spec.ts'
 
-const PROVIDERS_PATH = join(homedir(), '.config', 'magpie', 'providers.json')
+const PROVIDERS_PATH = magpieProvidersPath()
 /** providers.json holds provider keys: its backup stays owner-only. */
 const BACKUP_MODE = 0o600
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1'])
@@ -26,9 +28,6 @@ const ModelsFileSchema = Type.Object({
 		[MAGPIE_PROVIDER]: Type.Object({ baseUrl: Type.String() }),
 	}),
 })
-const ProvidersFileSchema = Type.Object({
-	groups: Type.Array(Type.Object({ id: Type.String() })),
-})
 const StoredRuleSchema = Type.Object({
 	use: Type.Optional(Type.String()),
 	more: Type.Optional(Type.Array(Type.String())),
@@ -36,14 +35,13 @@ const StoredRuleSchema = Type.Object({
 	folders: Type.Optional(Type.Array(Type.String())),
 })
 const StoredGroupSchema = Type.Object({
-	members: Type.Array(Type.String()),
 	classifier: Type.Optional(Type.String()),
 	intentSure: Type.Optional(Type.Number()),
 	rules: Type.Optional(Type.Array(StoredRuleSchema)),
 })
 
 type StoredRule = Static<typeof StoredRuleSchema>
-type StoredGroup = Static<typeof StoredGroupSchema>
+type StoredGroup = MagpieGroup & Static<typeof StoredGroupSchema>
 type RuleShape = {
 	use: string
 	more: string[]
@@ -72,8 +70,7 @@ function assertMagpieHost(agentDir: string): void {
 }
 
 function storedGroup(id: string): StoredGroup {
-	const { groups } = readCheckedJson(PROVIDERS_PATH, ProvidersFileSchema)
-	const group = groups.find(candidate => candidate.id === id)
+	const group = findMagpieGroup(id, PROVIDERS_PATH)
 	if (!Value.Check(StoredGroupSchema, group))
 		throw new Error(`${PROVIDERS_PATH} has no usable group ${id}`)
 	return group
@@ -139,7 +136,7 @@ function comparisons(spec: RoutingSpec, group: StoredGroup): Comparison[] {
 	return [
 		{
 			name: 'members',
-			stored: group.members.join(','),
+			stored: (group.members ?? []).join(','),
 			expected: spec.members.join(','),
 		},
 		{
