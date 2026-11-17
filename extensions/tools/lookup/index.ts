@@ -1,4 +1,3 @@
-import { contentText } from '#lib/content-text.ts'
 /**
  * lookup - several independent file lookups in one model round trip.
  *
@@ -11,6 +10,7 @@ import { contentText } from '#lib/content-text.ts'
  * Modules:
  *   ops.ts - pure: operation schema, owning-tool arguments, result rendering
  */
+import { contentText } from '#lib/content-text.ts'
 import { describeOperation } from '#lib/tools/lookup-sections.ts'
 import { nestedOptions } from '#lib/tools/nested.ts'
 
