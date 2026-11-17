@@ -81,9 +81,12 @@ def load_estimates(database, host, run):
 def insert_estimate(database, host, raw):
     if raw["cost_usd"] in (None, ""):
         return
-    amount = float(raw["cost_usd"])
+    try:
+        amount = float(raw["cost_usd"])
+    except ValueError:
+        return
     if not math.isfinite(amount) or not 0 <= amount <= MAX_NUMBER:
-        raise ValueError("invalid cost estimate")
+        return
     key = estimate_key(csv_row(raw), host)
     if key is None:
         return
