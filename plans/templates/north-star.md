@@ -66,8 +66,9 @@ it owns the workflow and what in this file binds.
 
 ## Decisions
 
-<!-- Ledger: append rows, never rewrite one. -->
-<!-- State: proposed, accepted, rejected or superseded. -->
+<!-- Rows move as "What binds" in the skill says: the person's recorded answer sets State and fills Acceptance, and from then on ID and Decision stay as written. -->
+<!-- State: proposed, accepted, rejected or `superseded by D<n>`. -->
+<!-- Decision: a row that replaces another opens with `Replaces D<n>.` -->
 <!-- Acceptance, required for accepted and rejected: the date, the revision the person read, the question asked, their answer in their words, where the record is kept. -->
 
 | ID | State | Decision | Acceptance |
