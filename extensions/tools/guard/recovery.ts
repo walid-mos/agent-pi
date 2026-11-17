@@ -4,10 +4,11 @@
  * edit "could not find": the current lines around the nearest match of the
  * missing text. read ENOENT: the nearest existing directory and its entries.
  */
-import { basename, dirname, resolve } from 'node:path'
+import { basename, dirname } from 'node:path'
 
 import { contentText } from '#lib/content-text.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
+import { resolveToolPath } from '#lib/tools/tool-path.ts'
 
 import type {
 	ExtensionAPI,
@@ -62,7 +63,7 @@ async function editHint(
 	const path = typeof input.path === 'string' ? input.path : ''
 	const missing = missingText(input, error)
 	if (!path || !missing) return undefined
-	const file = resolve(cwd, path)
+	const file = resolveToolPath(cwd, path)
 	const runtime = runtimeFor(file)
 	if (!(await runtime.exists(file))) return undefined
 	if ((await runtime.stat(file)).size > MAX_FILE_BYTES) return undefined
@@ -104,11 +105,9 @@ async function readHint(
 ): Promise<string | undefined> {
 	const requested = typeof input.path === 'string' ? input.path : ''
 	if (!requested) return undefined
-	const runtime = runtimeFor(resolve(cwd, requested))
-	const found = await nearestDirectory(
-		runtime,
-		dirname(resolve(cwd, requested)),
-	)
+	const file = resolveToolPath(cwd, requested)
+	const runtime = runtimeFor(file)
+	const found = await nearestDirectory(runtime, dirname(file))
 	if (!found) return undefined
 	const directory = runtime.toTarget(found)
 	let entries: string[]

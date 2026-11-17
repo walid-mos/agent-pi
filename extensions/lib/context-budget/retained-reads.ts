@@ -1,7 +1,6 @@
 /** Exact, bounded skill reads kept outside the lossy checkpoint summary. */
 import { readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { relative, resolve, sep } from 'node:path'
+import { relative, sep } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 
@@ -9,6 +8,7 @@ import {
 	describeOperation,
 	lookupSections,
 } from '#lib/tools/lookup-sections.ts'
+import { resolveToolPath } from '#lib/tools/tool-path.ts'
 
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 
@@ -38,7 +38,7 @@ function isSkillReference(path: string): boolean {
 
 function skillPath(path: unknown, cwd: string): string | undefined {
 	if (typeof path !== 'string') return undefined
-	const resolved = resolve(cwd, path.replace(/^~\//, `${homedir()}/`))
+	const resolved = resolveToolPath(cwd, path)
 	if (!isSkillReference(resolved)) return undefined
 	return resolved
 }
