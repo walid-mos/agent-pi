@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from .estimates import CSV_FIELDS, csv_instant, csv_rows
-from .normalize import KINDS, TOKEN_FIELDS, instant
+from .normalize import KINDS, TOKEN_FIELDS, count, instant
 
 SETTLE = timedelta(hours=1)
 TOKEN_COLUMNS = {kind: CSV_FIELDS[field] for kind, field in TOKEN_FIELDS.items()}
@@ -13,10 +13,9 @@ def empty_counts():
 
 def token_count(value):
     try:
-        amount = float(value)
+        return count(float(value)) or 0
     except (TypeError, ValueError):
         return 0
-    return int(amount) if amount.is_integer() and amount >= 0 else 0
 
 
 def accumulate(counts_by_day, day, row):
