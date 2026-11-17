@@ -15,10 +15,7 @@ import type {
 export const syntheticSecret = 'isolated-fixture-value'
 export const browserOrigin = 'https://example.test'
 
-export function socketExchange(
-	socket: string,
-	packet: object,
-): Promise<unknown> {
+function socketExchange(socket: string, packet: object): Promise<unknown> {
 	return new Promise((resolve, reject) => {
 		const connection = createConnection(socket)
 		const chunks: Buffer[] = []

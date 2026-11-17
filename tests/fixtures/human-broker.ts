@@ -50,7 +50,7 @@ export const request = {
 	context: 'Choose',
 	questions: brokerQuestions(questions),
 } satisfies BrokerRequest
-export const externalAnswers: BrokerAnswer[] = [
+const externalAnswers: BrokerAnswer[] = [
 	{ id: 'notes', labels: [], text: 'Ship tomorrow' },
 	{ id: 'target', labels: ['Production'], text: '' },
 	{ id: 'checks', labels: ['Types', 'Build'], text: 'Run audit too' },
