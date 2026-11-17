@@ -24,7 +24,9 @@ Install the Boat and workspace CLIs once:
 ~/.pi/agent/skills/boat/scripts/install
 ```
 
-The installer builds the public workspace repository in a temporary Docker container with bounded CPU and no vault variables. This first installation needs Docker and network access. To validate an unmerged workspace change, pass `--ref BRANCH`. Subsequent heavy repository builds run on Boat.
+The installer builds the public workspace repository in a temporary Docker container with bounded CPU and no vault variables. It needs Docker, curl, coreutils and network access. It checks `workspace job --help` before downloading Boat or installing either CLI. Until workspace PR8 reaches `main`, the default fails with that prerequisite. To validate an unmerged workspace change, review its source and pass `--ref BRANCH`. Subsequent heavy repository builds run on Boat.
+
+The Boat binary must match the platform digest owned by `scripts/install` before it becomes executable. The reviewed values came from the official [distribution checksum metadata](https://boat.dev/api/boat/cli/download?platform=linux-x64&channel=prod&integrity=sha256) on 2026-11-17. The official [installer](https://boat.dev/install) fetches those sums and the binary from the same origin. This pins the reviewed bytes locally and detects a later changed download, but the initial metadata is trusted through HTTPS only. The inspected distribution supplies no independent signature. The `prod` URL is mutable, so a release can make installation fail until an owner reviews new metadata and changes the pins. Downloading fresh sums beside a binary would not authenticate a compromised origin.
 
 Sign in through the broker:
 
