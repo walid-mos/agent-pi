@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from .estimates import CSV_FIELDS, csv_instant, csv_rows
-from .normalize import TOKEN_FIELDS, instant
+from .normalize import KINDS, TOKEN_FIELDS, instant
 
 SETTLE = timedelta(hours=1)
 TOKEN_COLUMNS = {kind: CSV_FIELDS[field] for kind, field in TOKEN_FIELDS.items()}
@@ -29,7 +29,7 @@ def snapshot_counts(snapshot):
 
 def add_row(days, row):
     stamp = csv_instant(row.get(CSV_FIELDS["t"]))
-    if stamp is None:
+    if stamp is None or (row.get(CSV_FIELDS["kind"]) or "") not in KINDS:
         return
     counts = days.setdefault(stamp[:10], empty_counts())
     counts["requests"] += 1
