@@ -6,7 +6,7 @@ import { Value } from 'typebox/value'
 import { BrokerSourceSchema } from '#lib/human-dialog/schema.ts'
 
 import { PrivateSecretServer } from './private-secret-server.ts'
-import { MAX_SECRET_LENGTH } from './schema.ts'
+import { MAX_SECRET_LENGTH, SecretValueSchema } from './schema.ts'
 import { secretHandoff } from './secret-store.ts'
 
 import type { BrokerSource } from '#lib/human-dialog/schema.ts'
@@ -22,11 +22,7 @@ const Incoming = Type.Object(
 		source: BrokerSourceSchema,
 		origin: Type.String(),
 		capability: Type.String(),
-		value: Type.String({
-			minLength: 1,
-			maxLength: MAX_SECRET_LENGTH,
-			pattern: '^[^\\r\\n\\u0000]+$',
-		}),
+		value: SecretValueSchema,
 	},
 	{ additionalProperties: false },
 )
@@ -154,8 +150,7 @@ export class BrowserSecretOwner {
 			!timingSafeEqual(incomingCapability, expectedCapability) ||
 			candidate.dialog !== this.binding.dialog ||
 			candidate.origin !== this.binding.origin ||
-			!Value.Equal(candidate.source, this.binding.source) ||
-			!candidate.value.trim()
+			!Value.Equal(candidate.source, this.binding.source)
 		)
 			throw new Error(
 				'Private secret handoff does not match its waiting tool call.',

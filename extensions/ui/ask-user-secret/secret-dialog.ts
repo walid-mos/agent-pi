@@ -3,6 +3,7 @@
  * paste; this component never renders its value, only one dot per character.
  */
 import { Input } from '@earendil-works/pi-tui'
+import { Value } from 'typebox/value'
 
 import { INSET } from '#lib/ui/align.ts'
 import { uiTheme } from '#lib/ui/design-system/theme.ts'
@@ -10,7 +11,7 @@ import { blockTitle, framedBlock, frameContentWidth } from '#lib/ui/frame.ts'
 import { showHumanDialog } from '#lib/ui/human-dialog.ts'
 import { pushWrapped } from '#lib/ui/terminal-text.ts'
 
-import { MAX_SECRET_LENGTH } from './schema.ts'
+import { MAX_SECRET_LENGTH, SecretValueSchema } from './schema.ts'
 
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import type { Component, Focusable, TUI } from '@earendil-works/pi-tui'
@@ -27,13 +28,13 @@ export interface SecretPrompt {
 	readonly destination: string
 }
 
-class SecretDialog implements Component, Focusable, DialogComponent {
+export class SecretDialog implements Component, Focusable, DialogComponent {
 	private readonly input = new Input()
 	private readonly timer: NodeJS.Timeout
 	private settled = false
 
 	constructor(
-		private readonly tui: TUI,
+		private readonly tui: Pick<TUI, 'requestRender'>,
 		private readonly prompt: SecretPrompt,
 		private readonly done: (value: string | undefined) => void,
 	) {
@@ -107,7 +108,7 @@ class SecretDialog implements Component, Focusable, DialogComponent {
 	}
 
 	private submit(typed: string): void {
-		if (!typed.length || typed.length > MAX_SECRET_LENGTH) {
+		if (!Value.Check(SecretValueSchema, typed)) {
 			this.tui.requestRender()
 			return
 		}

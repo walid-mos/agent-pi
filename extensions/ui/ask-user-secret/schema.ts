@@ -13,6 +13,11 @@ import {
 import type { Static } from 'typebox'
 
 export const MAX_SECRET_LENGTH = 4096
+export const SecretValueSchema = Type.String({
+	minLength: 1,
+	maxLength: MAX_SECRET_LENGTH,
+	pattern: '^(?=.*\\S)[^\\r\\n\\u0000]+$',
+})
 
 const InfisicalTargetParams = Type.Object({
 	projectId: Type.String({ pattern: PROJECT_ID_PATTERN }),
