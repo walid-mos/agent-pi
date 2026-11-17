@@ -19,11 +19,11 @@ FAILED = "usage-export: export failed. Check input format, private state, and ou
 
 class Parser(argparse.ArgumentParser):
     def error(self, message):
-        self.exit(2, "usage-export: invalid arguments. Run --help.\n")
+        self.exit(2, f"{self.prog.split()[0]}: invalid arguments. Run --help.\n")
 
 
 def parser():
-    root = Parser(description="Export local Magpie usage metadata. No network or installation.")
+    root = Parser(prog="usage-export", description="Export local Magpie usage metadata. No network or installation.")
     commands = root.add_subparsers(dest="command", required=True)
     commands.add_parser("schema", help="Print the authoritative event and manifest JSON Schema")
     coverage = commands.add_parser("coverage", help="Validate and print a published coverage manifest")
@@ -57,27 +57,26 @@ class Settings:
     price_snapshot_at: str | None
 
 
-def settings(options):
-    if bool(options.estimates) != bool(options.price_snapshot_at):
+def settings(*, ledger, state, output, start, through, timezone, now, rescan=False, catalog=None,
+             estimates=None, price_snapshot_at=None):
+    if bool(estimates) != bool(price_snapshot_at):
         raise ValueError("estimate snapshot needs its timestamp")
-    first, last = date.fromisoformat(options.start), date.fromisoformat(options.through)
+    first, last = date.fromisoformat(start), date.fromisoformat(through)
     span = (last - first).days
     if not 0 <= span < MAX_REPORT_DAYS:
         raise ValueError("invalid date window")
-    ledger = options.ledger.absolute()
-    state, output = (path.resolve() for path in (options.state, options.output))
+    state, output = (path.resolve() for path in (state, output))
     if state in output.parents or output in state.parents or state == output:
         raise ValueError("state and export must be separate")
-    sources = [options.ledger, options.catalog, options.estimates]
-    for source in (path.resolve() for path in sources if path is not None):
+    for source in (path.resolve() for path in (ledger, catalog, estimates) if path is not None):
         if state in source.parents or output in source.parents or source in (state, output):
             raise ValueError("source must be separate")
     return Settings(
-        ledger=ledger, state=state, output=output,
+        ledger=ledger.absolute(), state=state, output=output,
         days=tuple((first + timedelta(days=offset)).isoformat() for offset in range(span + 1)),
-        zone=ZoneInfo(options.timezone), now=timestamp(options.now),
-        rescan=options.rescan, catalog=catalog_labels(options.catalog), estimates=options.estimates,
-        price_snapshot_at=timestamp(options.price_snapshot_at) if options.price_snapshot_at else None)
+        zone=ZoneInfo(timezone), now=timestamp(now),
+        rescan=rescan, catalog=catalog_labels(catalog), estimates=estimates,
+        price_snapshot_at=timestamp(price_snapshot_at) if price_snapshot_at else None)
 
 
 def export_usage(run):
@@ -92,20 +91,28 @@ def export_usage(run):
             "relabelled_events": relabelled}
 
 
+def attempt_export(fields):
+    try:
+        return export_usage(settings(**fields)), None
+    except BlockingIOError:
+        return None, BUSY
+    except Exception:
+        return None, FAILED
+
+
 def main():
     try:
-        options = parser().parse_args()
-        if options.command == "schema":
-            result = SCHEMA
-        elif options.command == "coverage":
-            result = read_manifest(options.output)
+        options = vars(parser().parse_args())
+        command = options.pop("command")
+        if command == "export":
+            result, failure = attempt_export(options)
+            if failure:
+                print(failure, file=sys.stderr)
+                return 1
         else:
-            result = export_usage(settings(options))
+            result = SCHEMA if command == "schema" else read_manifest(options["output"])
         print(encode(result))
         return 0
-    except BlockingIOError:
-        print(BUSY, file=sys.stderr)
-        return 1
     except (Exception, KeyboardInterrupt):
         print(FAILED, file=sys.stderr)
         return 1
