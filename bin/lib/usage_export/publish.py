@@ -74,15 +74,15 @@ def day_entry(database, day):
     return json.loads(saved[0]) if saved else missing_day(day)
 
 
-def is_intact(directory, entry):
-    path = directory.parent / entry["file"]
+def is_intact(output, entry):
+    path = output / entry["file"]
     return path.is_file() and file_digest(path) == entry["sha256"]
 
 
-def stale_days(database, directory):
+def stale_days(database, output):
     dirty = {day for (day,) in database.execute("SELECT day FROM dirty")}
     published = database.execute("SELECT day, entry FROM published").fetchall()
-    damaged = {day for day, entry in published if day not in dirty and not is_intact(directory, json.loads(entry))}
+    damaged = {day for day, entry in published if day not in dirty and not is_intact(output, json.loads(entry))}
     return sorted(dirty | damaged)
 
 
@@ -90,7 +90,7 @@ def publish(database, identity, run, scan):
     private_directory(run.output)
     directory = run.output / "days"
     private_directory(directory)
-    for day in stale_days(database, directory):
+    for day in stale_days(database, run.output):
         entry = write_day(database, directory, day)
         database.execute("INSERT OR REPLACE INTO published VALUES (?, ?)", (day, encode(entry)))
     database.execute("DELETE FROM dirty")
