@@ -210,6 +210,18 @@ for (const [name, altered] of [
 	})
 }
 
+test('a stored secret receipt that omits the registered request cannot complete the waiting call', async () => {
+	const fixture = new SecretBrokerFixture()
+	fixture.transform = receipt => ({
+		...receipt,
+		delivery: { id: 'fixture-door' },
+	})
+	await assert.rejects(
+		pageSubmission(fixture, vault),
+		/this dialog and its registered request/,
+	)
+})
+
 test('a secret receipt bound to its registered request completes the waiting call', async () => {
 	const fixture = new SecretBrokerFixture()
 	const bind = storedWith({ request: 'fixture-door' })

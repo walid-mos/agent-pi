@@ -130,7 +130,7 @@ function checkSecretTarget(
 ): void {
 	if (
 		outcome.dialog !== dialog ||
-		(outcome.request && outcome.request !== deliveryId)
+		(Boolean(deliveryId) && outcome.request !== deliveryId)
 	)
 		throw new Error(
 			'Secret receipt does not match this dialog and its registered request. Open a new call.',
