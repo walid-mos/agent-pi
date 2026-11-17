@@ -25,7 +25,8 @@
  * arguments turn after turn, with arguments and output differing only in their
  * numbers, a tool answering with the same output turn after turn, or a tool
  * failing with the same error (numbers aside) whatever the arguments, and
- * escalates on every further repeat (refuse, end the run, abort it);
+ * escalates on every further repeat (refuse, refuse and steer, end the run,
+ * abort it);
  * fixed-delay.ts refuses a `sleep` stage between shell commands and
  * idle-command.ts a command that only echoes, assigns or reads the clock. All
  * are announced to the human; a human prompt resets the streaks.
