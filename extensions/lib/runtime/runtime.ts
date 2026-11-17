@@ -18,11 +18,12 @@ import { createLocalBashOperations } from '@earendil-works/pi-coding-agent'
 import { anchorFor, knownTargetFor } from './anchor.ts'
 import { RemoteRuntime } from './remote-runtime.ts'
 
-/** Streaming options both machines honour; the Boat receives no local env. */
+/** Options of a streamed command; `env` reaches local commands only, the Boat receives no local env. */
 export interface ExecOptions {
 	readonly onData: (data: Buffer) => void
 	readonly signal?: AbortSignal
 	readonly timeout?: number
+	readonly env?: NodeJS.ProcessEnv
 }
 
 export interface RuntimeStat {
