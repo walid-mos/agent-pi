@@ -9,7 +9,7 @@ MAX_NUMBER = 9_007_199_254_740_991
 TOKEN_FIELDS = {kind: {"input": "in", "output": "out"}.get(kind, kind) for kind in TOKENS["properties"]}
 CATEGORIES = {"agent": "agent", "requested_model": "req", "served_model": "served", "provider": "provider"}
 KINDS = {"": "workload", "compact": "workload", "routing": "routing-overhead"}
-STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$")
+STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$", re.ASCII)
 IDENTITY_FIELDS = ("t", "req", "model", "served", "provider", "agent", "session", "native_session",
                    "providerAccount", "providerKeyId", "kind", "ms", "ttft_ms", "status", "response_id",
                    "rid", "route_id", *TOKEN_FIELDS.values())
