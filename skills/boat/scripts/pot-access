@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KEY_TTL=30d
+KEY_ACTIONS=sandbox.create,sandbox.read,sandbox.stop,sandbox.delete-own,ssh,environment.read,account.read
+VAULT_FOLDER=boat
+VAULT_PARENT=/tools
+VAULT_NAMES='["BOAT_API_KEY","BOAT_ENVIRONMENT"]'
+SANDBOXES="$HOME/.config/agent-sandbox/sandboxes"
+INFISICAL="$HOME/.pi/agent/bin/infisical"
+SECRET_SET="$HOME/.pi/agent/security/secret-set.mjs"
+
+fail() { echo "pot-access: $1" >&2; exit 1; }
+boat() { command boat --no-update "$@"; }
+
+[[ $# -eq 1 && $1 =~ ^[a-z][a-z0-9-]*$ ]] || fail "usage: pot-access POT, where POT names a directory under $SANDBOXES"
+pot=$1
+vault_file="$SANDBOXES/$pot/vault.json"
+[[ -f $vault_file ]] || fail "$vault_file is missing: no pot named $pot on this machine"
+project=$(jq -er .project "$vault_file")
+vault_environment=$(jq -er .environment "$vault_file")
+environment="pots-$pot"
+key_name="pots-$pot"
+vault_path="$VAULT_PARENT/$VAULT_FOLDER/$pot"
+
+ensure_folder() {
+	local parent=$1 name=$2
+	if "$INFISICAL" secrets folders get --silent --projectId "$project" --env "$vault_environment" --path "$parent" -o json |
+		jq -e --arg name "$name" 'any((. // [])[]; .folderName == $name)' >/dev/null; then
+		return
+	fi
+	"$INFISICAL" secrets folders create --silent --projectId "$project" --env "$vault_environment" --path "$parent" --name "$name" >/dev/null
+}
+
+store() {
+	node "$SECRET_SET" --projectId "$project" --env "$vault_environment" --path "$vault_path" --name "$1" --replace >/dev/null
+}
+
+workspace setup --provider boat --boat-environment "$environment" >/dev/null ||
+	fail "workspace setup could not prepare the Boat environment $environment"
+environment_id=$(boat env info "$environment" --json | jq -er .environment.id)
+previous_keys=$(boat api-key list --json | jq -r --arg name "$key_name" '.apiKeys[] | select(.name == $name) | .id')
+
+ensure_folder "$VAULT_PARENT" "$VAULT_FOLDER"
+ensure_folder "$VAULT_PARENT/$VAULT_FOLDER" "$pot"
+
+created=$(boat api-key create "$key_name" --env "$environment_id" --actions "$KEY_ACTIONS" --ttl "$KEY_TTL" --json)
+key_id=$(printf '%s' "$created" | jq -er '.id // .apiKey.id // .key.id')
+expires=$(printf '%s' "$created" | jq -r '.expiresAt // .apiKey.expiresAt // .key.expiresAt // "unknown"')
+if ! printf '%s' "$created" | jq -er '.secret' | store BOAT_API_KEY; then
+	unset created
+	boat api-key revoke "$key_id" --json >/dev/null
+	fail "the vault refused BOAT_API_KEY at $vault_path; the new key $key_id was revoked and the previous keys still work"
+fi
+unset created
+printf '%s' "$environment" | store BOAT_ENVIRONMENT
+
+for previous in $previous_keys; do
+	boat api-key revoke "$previous" --json >/dev/null
+done
+
+echo "pot-access: $pot starts sandboxes in the Boat environment $environment with key $key_id, expiring $expires, stored at $vault_path"
+if ! jq -e --arg path "$vault_path" --argjson names "$VAULT_NAMES" '.onRequest.boat == {($path): $names}' "$SANDBOXES/$pot/sandbox.json" >/dev/null; then
+	echo "pot-access: set onRequest.boat to {\"$vault_path\": $VAULT_NAMES} in $SANDBOXES/$pot/sandbox.json, then run SANDBOX=$pot ./bin/vm-config from the agent-sandbox checkout"
+fi

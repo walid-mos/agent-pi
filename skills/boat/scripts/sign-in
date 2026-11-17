@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() { echo "sign-in: $1" >&2; exit 1; }
+
+[[ -n ${BOAT_API_KEY:-} && -n ${BOAT_ENVIRONMENT:-} ]] ||
+	fail "BOAT_API_KEY and BOAT_ENVIRONMENT are missing: run this as /opt/agent-sandbox/session/with-vault --with boat $0"
+command -v boat >/dev/null && command -v workspace >/dev/null ||
+	fail "boat or workspace is missing: run $(dirname "$0")/install first"
+
+boat --no-update status --json 2>/dev/null | jq -e '.account.signedIn == true' >/dev/null ||
+	fail "Boat refused the pot's control key; on the Mac, run the pot-access script for this pot"
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}/workspace/config.toml"
+environment_line="environment = \"$BOAT_ENVIRONMENT\""
+if [[ ! -e $config ]]; then
+	mkdir -p "$(dirname "$config")"
+	printf 'provider = "boat"\n\n[providers.boat]\n%s\n' "$environment_line" >"$config"
+elif ! grep -qxF "$environment_line" "$config"; then
+	fail "$config exists without the line '$environment_line' under [providers.boat]; add it there"
+fi
+
+workspace setup >/dev/null ||
+	fail "workspace could not check the Boat environment $BOAT_ENVIRONMENT with the pot's key"
+echo "sign-in: boat uses the pot's control key from the environment, and workspace starts sandboxes in $BOAT_ENVIRONMENT"
