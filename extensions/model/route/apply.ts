@@ -9,7 +9,7 @@ import { Value } from 'typebox/value'
 
 import { readCheckedJson } from '#lib/checked-json.ts'
 import { errorText } from '#lib/error-text.ts'
-import { magpieProvidersPath } from '#lib/magpie-codex.ts'
+import { magpieProvidersPath } from '#lib/magpie-groups.ts'
 import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 
 import type { Static } from 'typebox'

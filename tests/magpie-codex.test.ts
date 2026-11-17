@@ -4,10 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import {
-	magpieProvidersPath,
-	resolveCodexGroup,
-} from '../extensions/lib/magpie-codex.ts'
+import { resolveCodexGroup } from '../extensions/lib/magpie-codex.ts'
+import { magpieProvidersPath } from '../extensions/lib/magpie-groups.ts'
 
 import type { TestContext } from 'node:test'
 
