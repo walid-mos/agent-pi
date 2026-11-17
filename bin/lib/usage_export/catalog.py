@@ -3,8 +3,8 @@ import json
 import re
 
 from .normalize import CATEGORIES
-from .schema import encode
-from .storage import read_json
+from .schema import LABEL_MAX_LENGTH, encode
+from .storage import load_metadata, read_json, rewrite_event, save_metadata
 
 MAX_CONFIG_BYTES = 1024 * 1024
 RELABEL_BATCH = 500
@@ -31,18 +31,16 @@ def catalog_labels(path):
 
 
 def is_public_label(value):
-    return isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,119}", value) is not None
+    return isinstance(value, str) and re.fullmatch(rf"[a-zA-Z0-9][a-zA-Z0-9._:/+-]{{0,{LABEL_MAX_LENGTH - 1}}}", value) is not None
 
 
 def bind(database, run):
     source = {"ledger": str(run.ledger), "output": str(run.output), "timezone": run.zone.key}
     signature = hashlib.sha256(encode(source).encode()).hexdigest()
-    saved = database.execute("SELECT value FROM metadata WHERE key='binding'").fetchone()
-    bound = json.loads(saved[0]) if saved else {"source": signature, "catalog": {}}
+    bound = load_metadata(database, "binding") or {"source": signature, "catalog": {}}
     if bound["source"] != signature or not is_extension(run.catalog, bound["catalog"]):
         raise ValueError("state belongs to a different source or configuration")
-    database.execute("INSERT OR REPLACE INTO metadata VALUES ('binding', ?)",
-                     (encode({"source": signature, "catalog": run.catalog}),))
+    save_metadata(database, "binding", {"source": signature, "catalog": run.catalog})
     return {field: sorted(set(labels) - set(bound["catalog"].get(field, [])))
             for field, labels in run.catalog.items()}
 
@@ -69,8 +67,7 @@ def relabel_field(database, source, labels):
         for identifier, day, encoded, label in batch:
             event = json.loads(encoded)
             event[field]["label"] = label
-            database.execute("UPDATE events SET event=? WHERE id=?", (encode(event), identifier))
-            database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
+            rewrite_event(database, identifier, day, event)
             database.execute("INSERT OR IGNORE INTO relabelled VALUES (?)", (identifier,))
         last = batch[-1][0]
 

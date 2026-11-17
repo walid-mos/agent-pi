@@ -1,11 +1,10 @@
-import argparse
 import signal
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .catalog import candidates, catalog_labels
-from .cli import BUSY, FAILED, export_usage, parser, settings
+from .cli import Parser, attempt_export
 from .host_layout import TIMEZONE, WINDOW_DAYS, host_layout
 from .normalize import instant
 from .publish import read_manifest
@@ -21,13 +20,8 @@ NO_STATE = "usage-export-host: no export state yet. Run usage-export-host first.
 CANDIDATES_FAILED = "usage-export-host: candidates failed. Check the catalog and private state."
 
 
-class HostParser(argparse.ArgumentParser):
-    def error(self, message):
-        self.exit(2, "usage-export-host: invalid arguments. Run --help.\n")
-
-
 def host_parser():
-    root = HostParser(description="Export this host's Magpie usage on its standard paths. No network or installation.")
+    root = Parser(prog="usage-export-host", description="Export this host's Magpie usage on its standard paths. No network or installation.")
     root.add_argument("command", nargs="?", choices=("run", "candidates"), default="run",
                       help="run: snapshot prices, export, reconcile. candidates: list unlabelled catalog values")
     root.add_argument("--now", default=datetime.now(timezone.utc).isoformat(), help="Explicit run clock")
@@ -38,30 +32,17 @@ def present_catalog(layout):
     return layout.catalog if layout.catalog.exists() else None
 
 
-def export_arguments(layout, now, snapshot):
+def export_fields(layout, now, snapshot):
     today = instant(now).date()
-    arguments = ["export", "--ledger", str(layout.ledger), "--state", str(layout.state),
-                 "--output", str(layout.output), "--timezone", TIMEZONE, "--now", now,
-                 "--from", (today - timedelta(days=WINDOW_DAYS - 1)).isoformat(), "--through", today.isoformat()]
-    if present_catalog(layout):
-        arguments += ["--catalog", str(layout.catalog)]
-    if snapshot:
-        arguments += ["--estimates", str(snapshot), "--price-snapshot-at", now]
-    return arguments
-
-
-def attempt_export(arguments):
-    try:
-        return export_usage(settings(parser().parse_args(arguments))), None
-    except BlockingIOError:
-        return None, BUSY
-    except Exception:
-        return None, FAILED
+    return {"ledger": layout.ledger, "state": layout.state, "output": layout.output, "timezone": TIMEZONE,
+            "now": now, "start": (today - timedelta(days=WINDOW_DAYS - 1)).isoformat(),
+            "through": today.isoformat(), "catalog": present_catalog(layout), "estimates": snapshot,
+            "price_snapshot_at": now if snapshot else None}
 
 
 def run(layout, now):
     with price_snapshot(layout.magpie) as snapshot:
-        receipt, failure = attempt_export(export_arguments(layout, now, snapshot.path))
+        receipt, failure = attempt_export(export_fields(layout, now, snapshot.path))
         days = reconcile(read_manifest(layout.output), snapshot.path, now) if receipt and snapshot.path else []
     print(encode({"export": receipt, "snapshot": snapshot.status, "reconcile": days,
                   "estimates_applied": receipt is not None and snapshot.path is not None}))
