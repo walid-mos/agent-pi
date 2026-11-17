@@ -19,7 +19,9 @@
  * Module structure: `config.ts` (chain + toggles, persisted), `taxonomy.ts`
  * (status/error classification), `retry-budget.ts` (retry credits),
  * `retry.ts` (the bounded wait and failed-attempt omission), `chain.ts` (candidate
- * ordering), `cooldowns.ts` (which models the chain may not move to),
+ * ordering), `targets.ts` (the usable chain targets; a `codex-group/<id>` entry
+ * resolves through Magpie's offline group definitions at every failover),
+ * `cooldowns.ts` (which models the chain may not move to),
  * `fallback-session.ts` (the per-session decision
  * state), `failover.ts` (the model moves and their status line),
  * `gateway-watch.ts` / `gateway-liveness.ts` (abort a request the Magpie

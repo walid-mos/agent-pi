@@ -17,6 +17,7 @@ import { FALLBACK_STATUS_KEY as STATUS_KEY } from '#lib/model-fallback/status.ts
 
 import { modelReference, parseModelReference } from './chain.ts'
 import { continuationAfterFailover } from './fallback-message.ts'
+import { resolveFallbackChain } from './targets.ts'
 
 import type {
 	BoundaryResult,
@@ -28,11 +29,6 @@ import type { FallbackSession, FailureSighting } from './fallback-session.ts'
 type RegistryModel = NonNullable<
 	ReturnType<ExtensionContext['modelRegistry']['find']>
 >
-
-interface FailoverTarget {
-	reference: string
-	model: RegistryModel
-}
 
 /** The session's model as a chain reference (`provider/modelId`). */
 export function currentModelReference(
@@ -58,19 +54,6 @@ function findModel(
 	const parsed = parseModelReference(reference)
 	if (!parsed) return undefined
 	return ctx.modelRegistry.find(parsed.provider, parsed.modelId)
-}
-
-/** The first candidate this machine can actually run right now. */
-function resolveTarget(
-	ctx: ExtensionContext,
-	candidates: readonly string[],
-): FailoverTarget | undefined {
-	for (const reference of candidates) {
-		const model = findModel(ctx, reference)
-		if (!model || !ctx.modelRegistry.hasConfiguredAuth(model)) continue
-		return { reference, model }
-	}
-	return undefined
 }
 
 /** Announces a switch the user has to know about: it changed their provider. */
@@ -103,6 +86,8 @@ async function returnToOriginal(
 		session.forgetSwitch(reference)
 		return false
 	}
+	const thinkingLevel = session.restoreThinkingLevel()
+	if (thinkingLevel) pi.setThinkingLevel(thinkingLevel)
 	endFallback(ctx, session)
 	return true
 }
@@ -147,16 +132,26 @@ async function switchToNextModel(
 ): Promise<string | undefined> {
 	const now = Date.now()
 	session.coolDown(failure, now)
-	const target = resolveTarget(
-		ctx,
-		session.candidatesAfter(failure.model, now),
+	const targets = resolveFallbackChain(
+		session.currentConfig().chain,
+		ctx.modelRegistry,
+		message => ctx.ui.notify(message, 'warning'),
 	)
+	const [next] = session.candidatesAfter(
+		failure.model,
+		now,
+		targets.map(target => target.reference),
+	)
+	const target = targets.find(candidate => candidate.reference === next)
 	if (!target) {
 		await abandonChain(pi, ctx, session, failure)
 		return undefined
 	}
 	session.trackSwitch(target.reference)
-	if (await pi.setModel(target.model)) return target.reference
+	if (await pi.setModel(target.model)) {
+		if (target.thinkingLevel) pi.setThinkingLevel(target.thinkingLevel)
+		return target.reference
+	}
 	session.forgetSwitch(target.reference)
 	ctx.ui.notify(
 		`fallback: no credentials configured for ${target.reference}.`,
@@ -174,11 +169,12 @@ export async function performFailover(
 ): Promise<BoundaryResult | undefined> {
 	if (ctx.signal?.aborted) return undefined
 	const sessionId = ctx.sessionManager.getSessionId()
+	const thinkingLevel = pi.getThinkingLevel()
 	const candidate = await switchToNextModel(pi, ctx, session, failure)
 	if (!candidate) return undefined
 	if (ctx.signal?.aborted || sessionId !== ctx.sessionManager.getSessionId())
 		return undefined
-	session.markFallbackActive(failure.model)
+	session.markFallbackActive(failure.model, thinkingLevel)
 	reportFallback(ctx, failure, candidate)
 	return {
 		entries: ctx.hasPendingMessages()
@@ -201,9 +197,10 @@ export async function failoverAfterAbort(
 	failure: FailureSighting,
 ): Promise<void> {
 	const sessionId = ctx.sessionManager.getSessionId()
+	const thinkingLevel = pi.getThinkingLevel()
 	const candidate = await switchToNextModel(pi, ctx, session, failure)
 	if (!candidate || sessionId !== ctx.sessionManager.getSessionId()) return
-	session.markFallbackActive(failure.model)
+	session.markFallbackActive(failure.model, thinkingLevel)
 	reportFallback(ctx, failure, candidate)
 	pi.sendMessage(continuationAfterFailover(ctx, failure, candidate), {
 		triggerTurn: true,
