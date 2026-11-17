@@ -10,7 +10,6 @@ import {
 	commandEvidence,
 	evidenceText,
 } from '#lib/command-evidence/schema.ts'
-import { bashOperations } from '#lib/runtime/pi-operations.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
 
 import { commandWorkspace } from './command-workspace.ts'
@@ -117,19 +116,15 @@ async function prepareEvidence(
 	}
 }
 
-/** Pi's bash tool in the session cwd, on the machine that holds it. */
-function sessionBash(cwd: string): BashDefinition {
-	return createBashToolDefinition(cwd, {
-		operations: bashOperations(runtimeFor(cwd)),
-	})
-}
-
-function evidenceBash(cwd: string, steps: RecordedStep[]): BashDefinition {
+/** Pi's bash tool in the session cwd, on the machine that holds it; validation steps run with their evidence logged. */
+function bashFor(cwd: string, steps: RecordedStep[]): BashDefinition {
 	const runtime = runtimeFor(cwd)
 	return createBashToolDefinition(cwd, {
 		operations: {
-			exec: (_command, workingDirectory, options) =>
-				runtime.isRemote
+			exec: (command, workingDirectory, options) => {
+				if (!steps.length)
+					return runtime.exec(command, workingDirectory, options)
+				return runtime.isRemote
 					? execRemoteEvidence(
 							runtime,
 							steps,
@@ -140,7 +135,8 @@ function evidenceBash(cwd: string, steps: RecordedStep[]): BashDefinition {
 							loggedSteps(steps),
 							workingDirectory,
 							options,
-						),
+						)
+			},
 		},
 	})
 }
@@ -179,8 +175,8 @@ export async function executeWithEvidence(
 ): ReturnType<BashDefinition['execute']> {
 	const [, , , , ctx] = args
 	const steps = await prepareSteps(args)
-	if (!steps.length) return sessionBash(ctx.cwd).execute(...args)
-	const tool = evidenceBash(ctx.cwd, steps)
+	const tool = bashFor(ctx.cwd, steps)
+	if (!steps.length) return tool.execute(...args)
 	let execution: Awaited<ReturnType<BashDefinition['execute']>>
 	try {
 		execution = await tool.execute(...args)
