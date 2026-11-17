@@ -1,8 +1,6 @@
-import csv
-import hashlib
 from datetime import timedelta
 
-from .estimates import CSV_FIELDS, bounded_lines, csv_instant
+from .estimates import CSV_FIELDS, csv_instant, csv_rows
 from .normalize import TOKEN_FIELDS, instant
 
 SETTLE = timedelta(hours=1)
@@ -24,7 +22,7 @@ def token_count(value):
 def snapshot_counts(snapshot):
     days = {}
     with snapshot.open("rb") as stream:
-        for row in csv.DictReader(bounded_lines(stream, hashlib.sha256())):
+        for row in csv_rows(stream):
             add_row(days, row)
     return days
 

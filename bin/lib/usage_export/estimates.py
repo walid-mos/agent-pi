@@ -56,19 +56,23 @@ def csv_row(raw):
     return result
 
 
-def bounded_lines(stream, digest):
-    while line := stream.readline(MAX_LINE_BYTES + 1):
-        if len(line) > MAX_LINE_BYTES:
-            raise ValueError("oversize CSV row")
-        digest.update(line)
-        yield line.decode("utf-8-sig")
+def csv_rows(stream, digest=None):
+    def lines():
+        while line := stream.readline(MAX_LINE_BYTES + 1):
+            if len(line) > MAX_LINE_BYTES:
+                raise ValueError("oversize CSV row")
+            if digest:
+                digest.update(line)
+            yield line.decode("utf-8-sig")
+
+    return csv.DictReader(lines())
 
 
 def load_estimates(database, host, run):
     database.execute("DELETE FROM estimates")
     digest = hashlib.sha256()
     with run.estimates.open("rb") as stream:
-        reader = csv.DictReader(bounded_lines(stream, digest))
+        reader = csv_rows(stream, digest)
         if not set(CSV_FIELDS.values()).union({"cost_usd"}) <= set(reader.fieldnames or []):
             raise ValueError("unsupported CSV header")
         for raw in reader:
