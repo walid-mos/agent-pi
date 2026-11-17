@@ -10,8 +10,7 @@ import { quote } from '#lib/shell-quote.ts'
 
 import { exitCodesPath, loggedSteps } from './validation-log.ts'
 
-import type { ExecOptions } from '#lib/runtime/remote.ts'
-import type { Runtime } from '#lib/runtime/runtime.ts'
+import type { ExecOptions, Runtime } from '#lib/runtime/runtime.ts'
 import type { RecordedStep } from './validation-log.ts'
 
 const REMOTE_EVIDENCE_ROOT = '/tmp/pi-evidence'

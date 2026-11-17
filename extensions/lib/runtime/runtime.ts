@@ -18,7 +18,12 @@ import { createLocalBashOperations } from '@earendil-works/pi-coding-agent'
 import { anchorFor, knownTargetFor } from './anchor.ts'
 import { RemoteRuntime } from './remote-runtime.ts'
 
-import type { ExecOptions } from './remote.ts'
+/** Streaming options both machines honour; the Boat receives no local env. */
+export interface ExecOptions {
+	readonly onData: (data: Buffer) => void
+	readonly signal?: AbortSignal
+	readonly timeout?: number
+}
 
 export interface RuntimeStat {
 	readonly isDirectory: boolean

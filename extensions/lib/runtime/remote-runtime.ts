@@ -5,10 +5,11 @@ import { isWithin, targetFor, targetSync } from './anchor.ts'
 import { capture, exec } from './remote.ts'
 
 import type { Anchor, WorkspaceTarget } from './anchor.ts'
-import type { CaptureResult, ExecOptions } from './remote.ts'
+import type { CaptureResult } from './remote.ts'
 import type {
 	CommandOutput,
 	DirectoryEntry,
+	ExecOptions,
 	Runtime,
 	RuntimeStat,
 } from './runtime.ts'

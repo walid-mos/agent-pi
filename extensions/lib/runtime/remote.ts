@@ -6,6 +6,8 @@ import { execFile, spawn } from 'node:child_process'
 
 import { quote } from '#lib/shell-quote.ts'
 
+import type { ExecOptions } from './runtime.ts'
+
 const SSH = 'ssh'
 const STOP_GRACE_MS = 2000
 const MS_PER_SECOND = 1000
@@ -30,12 +32,6 @@ export interface CaptureResult {
 	readonly stdout: Buffer
 	readonly stderr: string
 	readonly exitCode: number | null
-}
-
-export interface ExecOptions {
-	readonly onData: (data: Buffer) => void
-	readonly signal?: AbortSignal
-	readonly timeout?: number
 }
 
 export function capture(
