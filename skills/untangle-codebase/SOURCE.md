@@ -19,7 +19,7 @@ The opening sentence and "Why" bullets, the step-2 taxonomy (hidden links, needl
 
 ## Local modifications (reapply on re-vendor)
 
-1. Upstream step 1 "Ask" (Comments / Tests options) removed. Comments follow the `~/.pi/agent/AGENTS.md` comment rule on touched files only; the Tests option is dropped because test authoring is forbidden by that file. The run's only question is the grouped decision of step 6.
+1. Upstream step 1 "Ask" (Comments / Tests options) removed. Comments follow the `~/.pi/agent/AGENTS.md` comment rule on touched files only; the Tests option is dropped because the run adds no test (step 4). The run's only question is the grouped decision of step 6.
 2. Step 0 gates added: clean checkout, project rules read, verification baseline recorded (the language's own compile command when the manifests name none), dedicated `refactor/untangle-*` branch. No compile and no test command → log-only run, no edit.
 3. Step 2: a problem enters the list only after both ends of the code are read (subagent findings re-read); bugs met on the way are listed.
 4. Step 3: `do` / `decision` classification, `do` by default. Each doubt (frozen surface, observable behaviour, no verification, diverging copies, project rule, test change) has one check to run; a fix is `decision` only when its check has failed. "Trivial", "budget", "process", bundled lines, and "intended behaviour" are not reasons. Dependency manifests and build config are not frozen; the lockfile moves only through the package manager.

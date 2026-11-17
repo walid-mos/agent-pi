@@ -3,10 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 /** Save validation output before display filters; repeats warn and still execute. */
-import {
-	createBashToolDefinition,
-	createLocalBashOperations,
-} from '@earendil-works/pi-coding-agent'
+import { createBashToolDefinition } from '@earendil-works/pi-coding-agent'
 
 import {
 	COMMAND_EVIDENCE_ENTRY,
@@ -18,7 +15,7 @@ import { runtimeFor } from '#lib/runtime/runtime.ts'
 import { commandWorkspace } from './command-workspace.ts'
 import { execRemoteEvidence } from './remote-evidence.ts'
 import { validationCommand } from './shell-segments.ts'
-import { loggedSteps } from './validation-log.ts'
+import { exitCodesPath, loggedSteps } from './validation-log.ts'
 import { validationSteps } from './validation-steps.ts'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
@@ -56,7 +53,7 @@ async function saveEvidence(
 	pi: ExtensionAPI,
 	isCurrent: () => boolean,
 ): Promise<CommandEvidence> {
-	const codes = await readExitCodes(`${record.receiptPath}.codes`)
+	const codes = await readExitCodes(exitCodesPath(record))
 	const saved = {
 		...record,
 		endedAtMs: Date.now(),
@@ -119,20 +116,27 @@ async function prepareEvidence(
 	}
 }
 
-function evidenceBash(cwd: string, steps: RecordedStep[]): BashDefinition {
-	const local = createLocalBashOperations()
+/** Pi's bash tool in the session cwd, on the machine that holds it; validation steps run with their evidence logged. */
+function bashFor(cwd: string, steps: RecordedStep[]): BashDefinition {
 	const runtime = runtimeFor(cwd)
 	return createBashToolDefinition(cwd, {
 		operations: {
-			exec: (_command, workingDirectory, options) =>
-				runtime.isRemote
+			exec: (command, workingDirectory, options) => {
+				if (!steps.length)
+					return runtime.exec(command, workingDirectory, options)
+				return runtime.isRemote
 					? execRemoteEvidence(
 							runtime,
 							steps,
 							workingDirectory,
 							options,
 						)
-					: local.exec(loggedSteps(steps), workingDirectory, options),
+					: runtime.exec(
+							loggedSteps(steps),
+							workingDirectory,
+							options,
+						)
+			},
 		},
 	})
 }
@@ -166,14 +170,13 @@ async function saveSteps(
 
 export async function executeWithEvidence(
 	pi: ExtensionAPI,
-	bash: BashDefinition,
 	args: BashArguments,
 	isCurrent: () => boolean,
 ): ReturnType<BashDefinition['execute']> {
 	const [, , , , ctx] = args
 	const steps = await prepareSteps(args)
-	if (!steps.length) return bash.execute(...args)
-	const tool = evidenceBash(ctx.cwd, steps)
+	const tool = bashFor(ctx.cwd, steps)
+	if (!steps.length) return tool.execute(...args)
 	let execution: Awaited<ReturnType<BashDefinition['execute']>>
 	try {
 		execution = await tool.execute(...args)

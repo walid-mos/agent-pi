@@ -1,3 +1,4 @@
+import { isJobReport } from '#lib/tools/bash-jobs-event.ts'
 import { readLabel } from '#lib/ui/herdr-labels.ts'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
@@ -49,9 +50,6 @@ function screenRead(
 	)
 }
 
-const isRunningJob = (details: unknown): boolean =>
-	typeof details === 'object' && details !== null && 'jobId' in details
-
 export function registerReadReceipts(
 	pi: ExtensionAPI,
 	reader: string,
@@ -70,7 +68,7 @@ export function registerReadReceipts(
 		const { command } = event.input
 		if (event.isError || !ctx.hasUI || typeof command !== 'string')
 			return undefined
-		if (isRunningJob(event.details)) return undefined
+		if (isJobReport(event.details)) return undefined
 		const read = screenRead(command, startMs, Date.now())
 		if (read !== null)
 			void labelOn(read.terminal, readLabel(reader), String(read.atMs))

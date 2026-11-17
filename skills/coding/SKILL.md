@@ -29,7 +29,7 @@ Sub-files, load on demand:
 
 - [architecture.md](architecture.md) - project-level structure rules (deep vs shallow modules, god objects, typed structures, dispatch tables, invariants & ownership, cross-cutting registries, decay signals). Load when designing or modifying structure across files, not just functions.
 - [ops-discipline.md](ops-discipline.md) - operational discipline: context economy when exploring code, and never using routing/scope rules as an excuse to skip a worthwhile change. Load when exploring an unfamiliar codebase, or when tempted to drop a change as "out of scope".
-- [testing.md](testing.md) - test quality in depth: the falsifiability litmus, tautology patterns and fixes, behavior-over-implementation, fakes vs mocks, determinism, coverage. Load after the Tests gate in `~/.pi/agent/AGENTS.md` permits test work, before writing or modifying tests or when a test smells like a mirror of the code.
+- [testing.md](testing.md) - test quality in depth: the falsifiability litmus, tautology patterns and fixes, behavior-over-implementation, fakes vs mocks, determinism, coverage. Load before writing or modifying tests, or when a test smells like a mirror of the code.
 
 ## The Laziest Change That Works
 
@@ -114,8 +114,6 @@ Every piece of knowledge - constant, validation rule, business calculation, type
 - **D** - Depend on abstractions, not details: high-level policy never imports low-level detail (DB/HTTP/FS) directly. See *Deep Modules Over Shallow* in [architecture.md](architecture.md) - this is what makes code testable.
 
 ## Test Quality: Every Test Must Be Falsifiable
-
-**Gate:** `~/.pi/agent/AGENTS.md` under Tests decides whether test authoring is permitted. Quality rules grant no permission.
 
 Tests obey every rule above, but answer to a stricter question: **can a production bug make it fail?** Name the bug a test catches before writing it. No answer means the test is a mirror of the implementation, not a check on it.
 

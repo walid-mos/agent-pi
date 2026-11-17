@@ -7,11 +7,11 @@ const ACTIVE_TOOLS = ['read', 'grep', 'find', 'ls']
 const CWD = '/repo'
 
 function planKind(command: string): string | undefined {
-	return shellLookupPlan({ command }, ACTIVE_TOOLS, CWD)?.kind
+	return shellLookupPlan(command, ACTIVE_TOOLS, CWD)?.kind
 }
 
 function redirect(command: string): unknown {
-	const plan = shellLookupPlan({ command }, ACTIVE_TOOLS, CWD)
+	const plan = shellLookupPlan(command, ACTIVE_TOOLS, CWD)
 	if (plan?.kind !== 'redirect') return plan
 	return { tool: plan.tool, args: plan.args }
 }

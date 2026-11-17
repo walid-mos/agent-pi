@@ -1,11 +1,10 @@
 import { createHash } from 'node:crypto'
 import { statSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { resolve } from 'node:path'
 
 import { checkpointReadResults } from '#lib/context-budget/retained-reads.ts'
-import { quote } from '#lib/runtime/remote.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
+import { quote } from '#lib/shell-quote.ts'
+import { resolveToolPath } from '#lib/tools/tool-path.ts'
 
 import type { Runtime } from '#lib/runtime/runtime.ts'
 
@@ -104,7 +103,7 @@ export class ReadLedger {
 		cwd: string,
 		input: { path: string; offset?: number | null; limit?: number | null },
 	): Promise<boolean> {
-		const path = resolve(cwd, input.path.replace(/^~\//, `${homedir()}/`))
+		const path = resolveToolPath(cwd, input.path)
 		const signature = await this.signature(path)
 		if (!signature) return false
 		const key = JSON.stringify([

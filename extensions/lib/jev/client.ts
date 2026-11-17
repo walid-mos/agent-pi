@@ -4,7 +4,7 @@
 import { readAnswers, readChoice, readMeta } from './response.ts'
 
 /** Pinned: `jev-latest` moves, and thresholds tuned against one version must not drift. */
-export const JEV_MODEL = 'jev-1.13.0'
+const JEV_MODEL = 'jev-1.13.0'
 /** Input-only billing; output tokens are free. */
 const USD_PER_MTOK = 0.042
 const TOKENS_PER_MTOK = 1_000_000

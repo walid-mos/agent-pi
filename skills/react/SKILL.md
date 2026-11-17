@@ -68,7 +68,7 @@ Every component has exactly ONE job and ONE reason to change - SRP is the first 
 
 - Duplicated JSX --> extract a component; duplicated stateful logic --> a custom hook. Rule of three: the third copy MUST be extracted; don't abstract on the first.
 - Aim much flatter than the linted depth-8: past ~3-4 levels, extract a child component. Fragments over wrapper `<div>`s.
-- For the Tests gate in `~/.pi/agent/AGENTS.md`, state transitions, validation and conditional behaviour count as logic. Presentational components, layout and plain query wiring do not. Follow `coding-tdd` when the gate permits test work. Use RTL role/text queries, user events and visible output.
+- Under Tests in `~/.pi/agent/AGENTS.md`, state transitions, validation and conditional behaviour count as logic. Presentational components, layout and plain query wiring do not. Follow `coding-tdd` when a component gets a test. Use RTL role/text queries, user events and visible output.
 - `useMemo`/`useCallback`/`React.memo` only for measured hot paths or to stabilize a dependency - never a default.
 
 ## State management

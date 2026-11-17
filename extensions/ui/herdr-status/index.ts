@@ -25,10 +25,8 @@
  * read that terminal's screen with `hc read` (`receipt.ts`); the lifecycle
  * sweeper takes a read after a helper finished as its result received.
  *
- * `pi.session` (`SESSION_LABEL`): the interactive session's file, so a
- * terminal this session relays to with `hc send` can read the human answers
- * behind the relay (`#lib/test-pace/relay-evidence.ts`), and the lifecycle
- * sweeper can reopen the conversation after it closes the terminal.
+ * `pi.session` (`SESSION_LABEL`): the interactive session's file, so the
+ * lifecycle sweeper can reopen the conversation after it closes the terminal.
  *
  * A subagent inherits this terminal's environment, so only the interactive
  * session publishes: a child's counts and shutdown would overwrite the

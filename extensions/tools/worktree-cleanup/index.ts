@@ -1,5 +1,6 @@
 /** Retry the worktree skill's guarded cleanup after a PR ends and once the agent settles. */
 import { runtimeFor } from '#lib/runtime/runtime.ts'
+import { quote } from '#lib/shell-quote.ts'
 
 import type {
 	ExtensionAPI,
@@ -9,10 +10,6 @@ import type {
 const PR_END =
 	/\bgh(?:\s+(?:--repo|-R|--hostname)\s+\S+)*\s+pr\s+(?:merge|close)(?=\s|$)/
 const CLEANUP = '"$HOME/.pi/agent/skills/worktree/scripts/cleanup"'
-
-function quote(repository: string): string {
-	return `'${repository.replaceAll("'", "'\\''")}'`
-}
 
 async function sweep(context: ExtensionContext): Promise<string> {
 	const runtime = runtimeFor(context.cwd)

@@ -3,7 +3,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-export const ANCHOR_MARKER = '.workspace.json'
+const ANCHOR_MARKER = '.workspace.json'
 const WORKSPACE_BIN = 'workspace'
 const STATUS_TIMEOUT_MS = 120_000
 const RESUME_TIMEOUT_MS = 600_000
@@ -16,7 +16,7 @@ export interface Anchor {
 	readonly branch: string
 }
 
-export interface WorkspacePort {
+interface WorkspacePort {
 	readonly name: string
 	readonly port: number
 	readonly url: string

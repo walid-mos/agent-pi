@@ -1,14 +1,15 @@
 /** Exact, bounded skill reads kept outside the lossy checkpoint summary. */
 import { readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { relative, resolve, sep } from 'node:path'
+import { relative, sep } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 
+import { contentText } from '#lib/content-text.ts'
 import {
 	describeOperation,
 	lookupSections,
 } from '#lib/tools/lookup-sections.ts'
+import { resolveToolPath } from '#lib/tools/tool-path.ts'
 
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 
@@ -38,7 +39,7 @@ function isSkillReference(path: string): boolean {
 
 function skillPath(path: unknown, cwd: string): string | undefined {
 	if (typeof path !== 'string') return undefined
-	const resolved = resolve(cwd, path.replace(/^~\//, `${homedir()}/`))
+	const resolved = resolveToolPath(cwd, path)
 	if (!isSkillReference(resolved)) return undefined
 	return resolved
 }
@@ -75,10 +76,6 @@ function readCalls(
 	}
 }
 
-function resultText(content: readonly TextPart[]): string {
-	return content.map(block => block.text ?? '').join('')
-}
-
 /** The text each skill read produced, as the model saw it: the whole `read` result, or its `lookup` section. */
 function readTexts(
 	toolName: string,
@@ -87,9 +84,9 @@ function readTexts(
 ): { path: string; text: string }[] {
 	if (toolName === 'read') {
 		const [read] = reads
-		return read ? [{ path: read.path, text: resultText(content) }] : []
+		return read ? [{ path: read.path, text: contentText(content, '') }] : []
 	}
-	const sections = lookupSections(resultText(content))
+	const sections = lookupSections(contentText(content, ''))
 	return reads.flatMap(read => {
 		const section = sections.find(
 			candidate =>
