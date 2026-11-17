@@ -108,7 +108,7 @@ function managedTool(
 ): ToolDefinition<typeof managedBashSchema, unknown> {
 	const runtime = runtimeFor(process.cwd())
 	const bash = createBashToolDefinition(process.cwd(), {
-		...(runtime.isRemote && { operations: bashOperations(runtime) }),
+		operations: bashOperations(runtime),
 	})
 	return {
 		name: bash.name,

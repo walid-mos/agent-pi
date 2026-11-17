@@ -14,6 +14,8 @@ import {
 	writeFile,
 } from 'node:fs/promises'
 
+import { createLocalBashOperations } from '@earendil-works/pi-coding-agent'
+
 import { anchorFor, knownTargetFor } from './anchor.ts'
 import { RemoteRuntime } from './remote-runtime.ts'
 
@@ -120,7 +122,8 @@ const LOCAL: Runtime = {
 			isSymbolicLink: entry.isSymbolicLink(),
 		})),
 	run: (command, cwd) => runLocal(command, cwd),
-	exec: (command, cwd, options) => execLocal(command, cwd, options),
+	exec: (command, cwd, options) =>
+		createLocalBashOperations().exec(command, cwd, options),
 }
 
 function runLocal(command: string, cwd: string): Promise<CommandOutput> {
@@ -138,22 +141,5 @@ function runLocal(command: string, cwd: string): Promise<CommandOutput> {
 				exitCode,
 			}),
 		)
-	})
-}
-
-function execLocal(
-	command: string,
-	cwd: string,
-	options: ExecOptions,
-): Promise<{ exitCode: number | null }> {
-	return new Promise((resolve, reject) => {
-		const child = spawn('bash', ['-c', command], {
-			cwd,
-			signal: options.signal,
-		})
-		child.stdout.on('data', options.onData)
-		child.stderr.on('data', options.onData)
-		child.on('error', reject)
-		child.on('close', exitCode => resolve({ exitCode }))
 	})
 }

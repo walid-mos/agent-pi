@@ -3,10 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 /** Save validation output before display filters; repeats warn and still execute. */
-import {
-	createBashToolDefinition,
-	createLocalBashOperations,
-} from '@earendil-works/pi-coding-agent'
+import { createBashToolDefinition } from '@earendil-works/pi-coding-agent'
 
 import {
 	COMMAND_EVIDENCE_ENTRY,
@@ -120,7 +117,6 @@ async function prepareEvidence(
 }
 
 function evidenceBash(cwd: string, steps: RecordedStep[]): BashDefinition {
-	const local = createLocalBashOperations()
 	const runtime = runtimeFor(cwd)
 	return createBashToolDefinition(cwd, {
 		operations: {
@@ -132,7 +128,11 @@ function evidenceBash(cwd: string, steps: RecordedStep[]): BashDefinition {
 							workingDirectory,
 							options,
 						)
-					: local.exec(loggedSteps(steps), workingDirectory, options),
+					: runtime.exec(
+							loggedSteps(steps),
+							workingDirectory,
+							options,
+						),
 		},
 	})
 }
