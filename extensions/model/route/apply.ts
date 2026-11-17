@@ -9,7 +9,7 @@ import { Value } from 'typebox/value'
 
 import { readCheckedJson } from '#lib/checked-json.ts'
 import { errorText } from '#lib/error-text.ts'
-import { magpieProvidersPath, readMagpieGroups } from '#lib/magpie-groups.ts'
+import { findMagpieGroup, magpieProvidersPath } from '#lib/magpie-groups.ts'
 import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 
 import type { Static } from 'typebox'
@@ -70,9 +70,7 @@ function assertMagpieHost(agentDir: string): void {
 }
 
 function storedGroup(id: string): StoredGroup {
-	const group = readMagpieGroups(PROVIDERS_PATH).find(
-		candidate => candidate.id === id,
-	)
+	const group = findMagpieGroup(id, PROVIDERS_PATH)
 	if (!Value.Check(StoredGroupSchema, group))
 		throw new Error(`${PROVIDERS_PATH} has no usable group ${id}`)
 	return group

@@ -29,3 +29,15 @@ export function readMagpieGroups(path = magpieProvidersPath()): MagpieGroup[] {
 		)
 	}
 }
+
+export function findMagpieGroup(
+	id: string,
+	path = magpieProvidersPath(),
+): MagpieGroup {
+	const group = readMagpieGroups(path).find(candidate => candidate.id === id)
+	if (!group)
+		throw new Error(
+			`Magpie configuration ${path}: missing group ${id}. Restore or seed it.`,
+		)
+	return group
+}

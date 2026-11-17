@@ -2,14 +2,21 @@ import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
 import { errorText } from './error-text.ts'
-import { magpieProvidersPath, readMagpieGroups } from './magpie-groups.ts'
+import { findMagpieGroup, magpieProvidersPath } from './magpie-groups.ts'
 
+import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import type { Static } from 'typebox'
 import type { MagpieGroup } from './magpie-groups.ts'
 
 export const CODEX_GROUP_PREFIX = 'codex-group/'
 const CODEX_MEMBER_PREFIX = 'codex/'
-const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+const EFFORTS = [
+	'low',
+	'medium',
+	'high',
+	'xhigh',
+	'max',
+] as const satisfies readonly ModelThinkingLevel[]
 const EffortSchema = Type.Union(EFFORTS.map(effort => Type.Literal(effort)))
 
 type CodexSelection = {
@@ -18,27 +25,19 @@ type CodexSelection = {
 	thinkingLevel: Static<typeof EffortSchema>
 }
 
-function readGroups(group: string, path: string): MagpieGroup[] {
+export function resolveCodexGroup(
+	group: string,
+	path = magpieProvidersPath(),
+): CodexSelection {
+	let stored: MagpieGroup
 	try {
-		return readMagpieGroups(path)
+		stored = findMagpieGroup(group, path)
 	} catch (error) {
 		throw new Error(
 			`Cannot resolve Codex group ${group}: ${errorText(error)}`,
 			{ cause: error },
 		)
 	}
-}
-
-export function resolveCodexGroup(
-	group: string,
-	path = magpieProvidersPath(),
-): CodexSelection {
-	const groups = readGroups(group, path)
-	const stored = groups.find(candidate => candidate.id === group)
-	if (!stored)
-		throw new Error(
-			`Magpie configuration ${path}: missing group ${group}. Restore or seed it.`,
-		)
 	const member = stored.members.find(candidate =>
 		candidate.startsWith(CODEX_MEMBER_PREFIX),
 	)
@@ -50,7 +49,7 @@ export function resolveCodexGroup(
 		.slice(CODEX_MEMBER_PREFIX.length)
 		.split(':')
 	if (
-		!/^[^:\s]+$/.test(id) ||
+		!/^\S+$/.test(id) ||
 		/^(claude|anthropic)([-/]|$)/i.test(id) ||
 		extra ||
 		!Value.Check(EffortSchema, thinkingLevel)
