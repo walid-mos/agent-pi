@@ -187,7 +187,7 @@ its execution details remain authoritative.
   Global Ctrl+O still rebuilds cards through `CustomMessageComponent.setExpanded`. Producers own their wire ids and
   payloads, and renderers never re-etch stored text: `tools/guard/bash-job-card.ts` renders
   `pi-bash-job-complete` (the completion notification for owned background commands; the minted
-  snapshot line parses through the live `jobSnapshotSchema`, the card is titled by the
+  snapshot line parses through the live `JobSnapshotSchema` of `#lib/tools/bash-jobs-event.ts`, the card is titled by the
   job's program identity derived from the minted command (`pnpm lint`, `grep`,
   `node render-cards.mjs`) instead of the generic `job`, collapsed keeps a bounded output
   preview of 6 rows with a `... N more lines` row, Ctrl+O reveals the verbatim command,
