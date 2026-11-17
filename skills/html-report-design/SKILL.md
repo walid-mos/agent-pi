@@ -5,7 +5,7 @@ description: Use for HTML reports; apply shared Pi/Hermes templates.
 
 # Shared HTML report design
 
-Use one template source for HTML reports made by Pi and Hermes. This skill is installed from the same `~/.agents/skills/html-report-design/` directory in both agents. The current default, `editorial-light`, was extracted from the daily Pi AI usage audit; other variants can be added without copying its palette into prompts or other skills.
+Use one template source for HTML reports made by Pi and Hermes. Both agents read `~/.pi/agent/skills/html-report-design/` in place through the [shared skill configuration](~/.pi/agent/README.md#shared-skills). The current default, `editorial-light`, was extracted from the daily Pi AI usage audit; other variants can be added without copying its palette into prompts or other skills.
 
 ## When to use
 
