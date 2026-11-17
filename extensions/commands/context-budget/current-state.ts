@@ -1,5 +1,5 @@
-import { commandEvidence, evidenceText } from '#lib/command-evidence/schema.ts'
 /** Small, observed evidence supplement from the full edited projection, not just its old prefix. */
+import { commandEvidence, evidenceText } from '#lib/command-evidence/schema.ts'
 import { contentText } from '#lib/content-text.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
 
