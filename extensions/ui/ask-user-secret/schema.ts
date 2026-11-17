@@ -12,6 +12,8 @@ import {
 
 import type { Static } from 'typebox'
 
+export const MAX_SECRET_LENGTH = 4096
+
 const InfisicalTargetParams = Type.Object({
 	projectId: Type.String({ pattern: PROJECT_ID_PATTERN }),
 	environment: Type.String({ pattern: ENVIRONMENT_PATTERN }),

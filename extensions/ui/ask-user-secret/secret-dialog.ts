@@ -10,12 +10,13 @@ import { blockTitle, framedBlock, frameContentWidth } from '#lib/ui/frame.ts'
 import { showHumanDialog } from '#lib/ui/human-dialog.ts'
 import { pushWrapped } from '#lib/ui/terminal-text.ts'
 
+import { MAX_SECRET_LENGTH } from './schema.ts'
+
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import type { Component, Focusable, TUI } from '@earendil-works/pi-tui'
 import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type { DialogComponent } from '#lib/ui/human-dialog.ts'
 
-const MAX_SECRET_LENGTH = 4096
 const ENTRY_TIMEOUT_MS = 300_000
 const MASK = '•'
 const CURSOR = '▏'

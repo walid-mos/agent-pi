@@ -3,7 +3,10 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { BrokerSourceSchema } from '#lib/human-dialog/schema.ts'
+
 import { PrivateSecretServer } from './private-secret-server.ts'
+import { MAX_SECRET_LENGTH } from './schema.ts'
 import { secretHandoff } from './secret-store.ts'
 
 import type { BrokerSource } from '#lib/human-dialog/schema.ts'
@@ -16,20 +19,12 @@ const Incoming = Type.Object(
 	{
 		version: Type.Literal(1),
 		dialog: Type.String(),
-		source: Type.Object(
-			{
-				type: Type.Literal('worker'),
-				worker: Type.String(),
-				session: Type.String(),
-				call: Type.String(),
-			},
-			{ additionalProperties: false },
-		),
+		source: BrokerSourceSchema,
 		origin: Type.String(),
 		capability: Type.String(),
 		value: Type.String({
 			minLength: 1,
-			maxLength: 4096,
+			maxLength: MAX_SECRET_LENGTH,
 			pattern: '^[^\\r\\n\\u0000]+$',
 		}),
 	},
@@ -148,16 +143,12 @@ export class BrowserSecretOwner {
 			throw new Error('Invalid private secret handoff.')
 		const incomingCapability = Buffer.from(candidate.capability)
 		const expectedCapability = Buffer.from(this.capability)
-		const { source } = candidate
 		if (
 			incomingCapability.length !== expectedCapability.length ||
 			!timingSafeEqual(incomingCapability, expectedCapability) ||
 			candidate.dialog !== this.binding.dialog ||
 			candidate.origin !== this.binding.origin ||
-			source.type !== this.binding.source.type ||
-			source.worker !== this.binding.source.worker ||
-			source.session !== this.binding.source.session ||
-			source.call !== this.binding.source.call ||
+			!Value.Equal(candidate.source, this.binding.source) ||
 			!candidate.value.trim()
 		)
 			throw new Error(
