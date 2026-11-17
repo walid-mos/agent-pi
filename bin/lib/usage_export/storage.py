@@ -1,4 +1,5 @@
 import fcntl
+import hashlib
 import json
 import os
 import secrets
@@ -85,14 +86,22 @@ def sync_directory(path):
         os.close(descriptor)
 
 
-def atomic_write(path, contents):
-    descriptor, pending = tempfile.mkstemp(prefix=".pending-", dir=path.parent)
+def file_digest(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def write_durably(directory, write, name_for):
+    descriptor, pending = tempfile.mkstemp(prefix=".pending-", dir=directory)
     try:
         with os.fdopen(descriptor, "wb") as stream:
-            stream.write(contents)
+            write(stream)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(pending, path)
-        sync_directory(path.parent)
+        digest = file_digest(Path(pending))
+        target = directory / name_for(digest)
+        os.replace(pending, target)
+        sync_directory(directory)
+        return target, digest
     finally:
         Path(pending).unlink(missing_ok=True)

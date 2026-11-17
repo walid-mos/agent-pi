@@ -1,14 +1,10 @@
 import gzip
-import hashlib
 import json
-import os
-import tempfile
 from datetime import date, timedelta
-from pathlib import Path
 
 from .scan import load_checkpoint
 from .schema import DAY_ENTRY, MANIFEST, TOKENS, VERSION, encode, validate
-from .storage import atomic_write, private_directory, sync_directory
+from .storage import private_directory, write_durably
 
 
 def empty_total():
@@ -44,38 +40,26 @@ def conflicts(database, day):
 
 
 def write_day(database, directory, day):
-    descriptor, pending = tempfile.mkstemp(prefix=".pending-", dir=directory)
     totals = {"workload": empty_total(), "routing-overhead": empty_total()}
     late = 0
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=stream, mtime=0) as compressed:
-                for encoded, is_late in database.execute(
-                        "SELECT event, late FROM events WHERE day=? ORDER BY stamp, id", (day,)):
-                    event = json.loads(encoded)
-                    compressed.write((encoded + "\n").encode())
-                    add_total(totals[event["kind"]], event)
-                    late += is_late
-            stream.flush()
-            os.fsync(stream.fileno())
-        digest = file_digest(Path(pending))
-        filename = f"{day}-{digest}.jsonl.gz"
-        os.replace(pending, directory / filename)
-        sync_directory(directory)
-        entry = {"day": day, "coverage": "partial", "file": f"days/{filename}",
-                 "sha256": digest, "bytes": (directory / filename).stat().st_size,
-                 "workload": totals["workload"], "overhead": totals["routing-overhead"],
-                 "late_events": late, "conflicting_id_events": conflicts(database, day)}
-        validate(entry, DAY_ENTRY)
-        return entry
-    finally:
-        if os.path.exists(pending):
-            os.unlink(pending)
 
+    def write(stream):
+        nonlocal late
+        with gzip.GzipFile(filename="", mode="wb", fileobj=stream, mtime=0) as compressed:
+            for encoded, is_late in database.execute(
+                    "SELECT event, late FROM events WHERE day=? ORDER BY stamp, id", (day,)):
+                event = json.loads(encoded)
+                compressed.write((encoded + "\n").encode())
+                add_total(totals[event["kind"]], event)
+                late += is_late
 
-def file_digest(path):
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+    path, digest = write_durably(directory, write, lambda digest: f"{day}-{digest}.jsonl.gz")
+    entry = {"day": day, "coverage": "partial", "file": f"days/{path.name}",
+             "sha256": digest, "bytes": path.stat().st_size,
+             "workload": totals["workload"], "overhead": totals["routing-overhead"],
+             "late_events": late, "conflicting_id_events": conflicts(database, day)}
+    validate(entry, DAY_ENTRY)
+    return entry
 
 
 def missing_day(day):
@@ -112,5 +96,6 @@ def publish(database, identity, options, scan):
                 "attribution": "ledger-only", "direct_usage": "not-collected",
                 "scan": scan, "days": list(day_entries(database, options))}
     validate(manifest, MANIFEST)
-    atomic_write(options.output / "manifest.json", (encode(manifest) + "\n").encode())
+    contents = (encode(manifest) + "\n").encode()
+    write_durably(options.output, lambda stream: stream.write(contents), lambda digest: "manifest.json")
     return manifest
