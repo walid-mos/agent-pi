@@ -67,7 +67,7 @@ def insert_estimate(database, host, raw):
 def revoke_ambiguous(database):
     candidates = database.execute("""SELECT id, day, event FROM events WHERE estimate_key IN (
         SELECT DISTINCT e.estimate_key FROM events e JOIN dirty d ON e.day=d.day
-        WHERE (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)>1)""".fetchall()
+        WHERE (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)>1)""").fetchall()
     for identifier, day, encoded in candidates:
         event = json.loads(encoded)
         if event["cost"]["estimate_usd"] is None:
@@ -84,7 +84,7 @@ def apply_estimates(database, host, run):
     provenance = load_estimates(database, host, run)
     candidates = database.execute("""SELECT e.id, e.day, e.event, p.amount FROM events e
         JOIN estimates p ON e.estimate_key=p.key WHERE p.matches=1
-        AND (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)=1""".fetchall()
+        AND (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)=1""").fetchall()
     for identifier, day, encoded, amount in candidates:
         event = json.loads(encoded)
         if event["cost"]["estimate_usd"] is not None:
