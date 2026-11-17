@@ -20,6 +20,7 @@ COMMAND_LINK = Path.home() / ".local/bin/tailnet-link"
 LAUNCH_AGENT_LABEL = "fr.nextnode.deliverables"
 LAUNCH_AGENT_LOG = Path.home() / "Library/Logs" / (LAUNCH_AGENT_LABEL + ".log")
 SYSTEMD_UNIT = "tailnet-link.service"
+SYSTEMD_RUNTIME = Path("/run/systemd/system")
 INSTALL_SCRIPT_URL = "https://tailscale.com/install.sh"
 INSTALL_SECONDS = 300
 AUTH_KEY_VARIABLE = "TS_AUTHKEY"
@@ -121,7 +122,17 @@ def install_systemd_unit():
     run(["sudo", "systemctl", "restart", SYSTEMD_UNIT])
 
 
-SERVICE_INSTALLERS = {"Darwin": install_launch_agent, "Linux": install_systemd_unit}
+# Same test as sd_booted(): without systemd, as in a container, the machine's own supervisor runs the file server.
+def install_linux_service():
+    if SYSTEMD_RUNTIME.is_dir():
+        return install_systemd_unit()
+    tailnet.wait_until(is_serving, SERVER_READY_SECONDS, "The file server does not answer on " + deliverables.ORIGIN + " for "
+                       + deliverables.owner() + ". This machine has no systemd, so its own supervisor must run "
+                       + " ".join(SERVER_COMMAND) + " once " + str(deliverables.OWNER_FILE)
+                       + " exists, and restart it when that file changes.")
+
+
+SERVICE_INSTALLERS = {"Darwin": install_launch_agent, "Linux": install_linux_service}
 
 
 def mount(name):
