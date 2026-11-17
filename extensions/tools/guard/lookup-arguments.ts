@@ -1,7 +1,7 @@
 /**
  * The 1:1 translations of a lookup-only shell stage into its owning tool's
  * arguments: cat/head/sed -n → read, grep/rg → grep, find -name → find,
- * ls → ls. Undefined means the shape has no exact tool equivalent. Pure.
+ * ls [-a1] → ls. Undefined means the shape has no exact tool equivalent. Pure.
  */
 import { resolve } from 'node:path'
 
@@ -12,8 +12,7 @@ export const SED_RANGE = /^(\d+)(?:,(\d+|\$))?p$/
 const DEFAULT_HEAD_LINES = 10
 const HEAD_FLAG_WORDS = 2
 const MAX_GREP_OPERANDS = 2
-const FIND_TYPE_WORDS = 2
-const LS_FLAGS = /^-[la1]+$/
+const LS_FLAGS = /^-[a1]+$/
 const GREP_FLAGS = /^-[EFinr]+$/
 const GREP_INCLUDE = /^--include=(.+)$/
 
@@ -135,19 +134,21 @@ function grepArguments(
 	}
 }
 
+/** The find tool matches case-insensitively only when the pattern has no uppercase letter (fd smart case). */
+function findIgnoresCase(pattern: string): boolean {
+	return pattern === pattern.toLowerCase()
+}
+
 function findArguments(
 	args: readonly string[],
 	headLines: number | undefined,
 	at: Resolver,
 ): ToolArguments | undefined {
 	const [root, predicate, pattern, ...rest] = args
-	if (!root || root.startsWith('-') || !pattern) return undefined
-	if (predicate !== '-name' && predicate !== '-iname') return undefined
-	if (
-		rest.length &&
-		!(rest.length === FIND_TYPE_WORDS && rest[0] === '-type')
-	)
+	if (!root || root.startsWith('-') || !pattern || rest.length)
 		return undefined
+	if (predicate === '-iname' && !findIgnoresCase(pattern)) return undefined
+	if (predicate !== '-name' && predicate !== '-iname') return undefined
 	return { pattern: `**/${pattern}`, path: at(root), ...limitOf(headLines) }
 }
 
