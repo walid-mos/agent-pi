@@ -1,0 +1,116 @@
+import gzip
+import hashlib
+import json
+import os
+import tempfile
+from datetime import date, timedelta
+from pathlib import Path
+
+from .scan import load_checkpoint
+from .schema import DAY_ENTRY, MANIFEST, TOKENS, VERSION, encode, validate
+from .storage import atomic_write, private_directory, sync_directory
+
+
+def empty_total():
+    return {"events": 0, "unpriced_events": 0, "missing_token_events": 0,
+            "missing_duration_events": 0, "estimate_usd": None, "request_ms_sum": None,
+            "tokens": dict.fromkeys(TOKENS["properties"])}
+
+
+def add_total(total, event):
+    total["events"] += 1
+    estimate = event["cost"]["estimate_usd"]
+    total["unpriced_events"] += int(estimate is None)
+    total["missing_token_events"] += int(None in event["tokens"].values())
+    total["missing_duration_events"] += int(event["duration_ms"] is None)
+    if estimate is not None:
+        total["estimate_usd"] = (total["estimate_usd"] or 0) + estimate
+    if event["duration_ms"] is not None:
+        total["request_ms_sum"] = (total["request_ms_sum"] or 0) + event["duration_ms"]
+    for kind, amount in event["tokens"].items():
+        if amount is not None:
+            total["tokens"][kind] = (total["tokens"][kind] or 0) + amount
+
+
+def conflicts(database, day):
+    result = database.execute("""
+        SELECT COUNT(*) FROM events current WHERE day=? AND (
+            (response IS NOT NULL AND EXISTS (SELECT 1 FROM events other
+                WHERE other.response=current.response AND other.id!=current.id)) OR
+            (request IS NOT NULL AND EXISTS (SELECT 1 FROM events other
+                WHERE other.request=current.request AND other.id!=current.id)))
+    """, (day,)).fetchone()
+    return result[0]
+
+
+def write_day(database, directory, day):
+    descriptor, pending = tempfile.mkstemp(prefix=".pending-", dir=directory)
+    totals = {"workload": empty_total(), "routing-overhead": empty_total()}
+    late = 0
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=stream, mtime=0) as compressed:
+                for encoded, is_late in database.execute(
+                        "SELECT event, late FROM events WHERE day=? ORDER BY stamp, id", (day,)):
+                    event = json.loads(encoded)
+                    compressed.write((encoded + "\n").encode())
+                    add_total(totals[event["kind"]], event)
+                    late += is_late
+            stream.flush()
+            os.fsync(stream.fileno())
+        digest = file_digest(Path(pending))
+        filename = f"{day}-{digest}.jsonl.gz"
+        os.replace(pending, directory / filename)
+        sync_directory(directory)
+        entry = {"day": day, "coverage": "partial", "file": f"days/{filename}",
+                 "sha256": digest, "bytes": (directory / filename).stat().st_size,
+                 "workload": totals["workload"], "overhead": totals["routing-overhead"],
+                 "late_events": late, "conflicting_id_events": conflicts(database, day)}
+        validate(entry, DAY_ENTRY)
+        return entry
+    finally:
+        if os.path.exists(pending):
+            os.unlink(pending)
+
+
+def file_digest(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def missing_day(day):
+    return {"day": day, "coverage": "missing", "file": None, "sha256": None, "bytes": None,
+            "workload": None, "overhead": None, "late_events": 0, "conflicting_id_events": 0}
+
+
+def day_entries(database, options):
+    current = date.fromisoformat(options.start)
+    through = date.fromisoformat(options.through)
+    while current <= through:
+        day = current.isoformat()
+        saved = database.execute("SELECT entry FROM published WHERE day=?", (day,)).fetchone()
+        yield json.loads(saved[0]) if saved else missing_day(day)
+        current += timedelta(days=1)
+
+
+def publish(database, identity, options, scan):
+    private_directory(options.output)
+    directory = options.output / "days"
+    private_directory(directory)
+    checkpoint = load_checkpoint(database)
+    for (day,) in database.execute("SELECT day FROM dirty ORDER BY day"):
+        entry = write_day(database, directory, day)
+        database.execute("INSERT OR REPLACE INTO published VALUES (?, ?)", (day, encode(entry)))
+    database.execute("DELETE FROM dirty")
+    first, last = database.execute("SELECT MIN(stamp), MAX(stamp) FROM events").fetchone()
+    manifest = {"schema_version": VERSION, "host_uuid": identity["host_uuid"],
+                "source_ref": identity["source_ref"], "source": "magpie-ledger",
+                "report_timezone": options.timezone, "last_scan_at": checkpoint["last_scan_at"],
+                "first_event_at": first, "last_event_at": last,
+                "source_retention": "unknown", "history": "partial",
+                "identity_semantics": "host-source-fingerprint-partial-ids",
+                "attribution": "ledger-only", "direct_usage": "not-collected",
+                "scan": scan, "days": list(day_entries(database, options))}
+    validate(manifest, MANIFEST)
+    atomic_write(options.output / "manifest.json", (encode(manifest) + "\n").encode())
+    return manifest
