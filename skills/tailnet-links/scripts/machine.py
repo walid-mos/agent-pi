@@ -135,6 +135,23 @@ def install_linux_service():
 SERVICE_INSTALLERS = {"Darwin": install_launch_agent, "Linux": install_linux_service}
 
 
+def is_userspace():
+    return tailnet.status("--peers=false").get("TUN") is False
+
+
+def await_route(root):
+    tailnet.wait_until(lambda: probe.fetch(root.rstrip("/") + HEALTH_PATH)[0] in ROUTED_STATUSES, CERTIFICATE_SECONDS,
+                       root + " does not answer from this machine. Review: tailscale serve status")
+
+
+# A userspace node gives this machine no route and no DNS to its own tailnet name, so Serve is read instead of fetched.
+def await_certificate(name):
+    if not is_mounted(name):
+        raise LinkError("Serve does not proxy https://" + name + deliverables.MOUNT_PATH + " to " + deliverables.ORIGIN
+                        + ". Review: tailscale serve status")
+    run([tailnet.cli(), "cert", "--cert-file=-", name], CERTIFICATE_SECONDS)
+
+
 def mount(name):
     with tailnet.serve_lock():
         current = tailnet.handlers(tailnet.serve_config(), name + ":443").get(deliverables.MOUNT_PATH)
@@ -164,7 +181,9 @@ def setup():
     tailnet.wait_until(is_serving, SERVER_READY_SECONDS, "The file server does not answer on " + deliverables.ORIGIN + ".")
     mount(name)
     root = deliverables.url(name, deliverables.ROOT.resolve())
-    tailnet.wait_until(lambda: probe.fetch(root.rstrip("/") + HEALTH_PATH)[0] in ROUTED_STATUSES, CERTIFICATE_SECONDS,
-                       root + " does not answer from this machine. Review: tailscale serve status")
+    if is_userspace():
+        await_certificate(name)
+    else:
+        await_route(root)
     link_command()
     return root
