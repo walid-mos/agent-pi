@@ -24,13 +24,13 @@
  * `skills.json` (overlay.ts), read once per session.
  */
 import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 
 import { isHumanPrompt } from '#lib/human-prompt.ts'
 import { formatSkillBlock, readSkillBody } from '#lib/skills/block.ts'
 import { runTimedHook } from '#lib/telemetry/hook-timing.ts'
+import { resolveToolPath } from '#lib/tools/tool-path.ts'
 
 import { loadSkillSurfaceConfig } from './overlay.ts'
 import { currentAnchor, placeSkills } from './placement.ts'
@@ -157,7 +157,7 @@ function registerAutoload(pi: ExtensionAPI, current: Current): void {
 		if (!PATH_TOOL_NAMES.has(event.toolName)) return undefined
 		const path = pathArgument(event.input)
 		if (!path) return undefined
-		const absolute = resolve(ctx.cwd, path)
+		const absolute = resolveToolPath(ctx.cwd, path)
 		const state = current()
 		const loaded =
 			event.toolName === 'read'

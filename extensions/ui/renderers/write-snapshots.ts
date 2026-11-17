@@ -1,11 +1,10 @@
 /** Optional, bounded before-images. Observers never modify arguments or deny a write. */
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { resolve } from 'node:path'
 import { buffer as readBuffer } from 'node:stream/consumers'
 
 import { runtimeFor } from '#lib/runtime/runtime.ts'
+import { resolveToolPath } from '#lib/tools/tool-path.ts'
 import { reflectMember } from '#lib/ui/pi-members.ts'
 
 import {
@@ -49,8 +48,7 @@ async function readBefore(path: string, cwd: string): Promise<BeforeImage> {
 	// Native aliases/Unicode-space normalization are not guessed at this boundary.
 	if (path.startsWith('@') || /\s/u.test(path.replaceAll(' ', '')))
 		return { kind: 'unavailable' }
-	const expanded = path.replace(/^~(?=\/|$)/u, () => homedir())
-	const target = resolve(cwd, expanded)
+	const target = resolveToolPath(cwd, path)
 	const runtime = runtimeFor(target)
 	try {
 		if (runtime.isRemote) return await readRemoteFile(runtime, target)
