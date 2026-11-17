@@ -4,7 +4,7 @@
 
 Keep the group reference in the chain when editing it through `/models`. Saving toggles or reordering entries preserves the reference. The picker displays it as configured. Do not replace it with a resolved model ID if later Magpie membership changes should apply.
 
-A missing or invalid configuration, missing group, absent Codex member, malformed member, unsupported effort, or a derived model absent from the capability catalog produces a visible warning naming the skipped entry and its repair. Members must declare one of `low`, `medium`, `high`, `xhigh`, or `max`. The resolver also rejects Anthropic model names. An entry without configured credentials is skipped in silence, like any plain chain entry; chained steps continue to the next usable target, including the independent Inco provider. If none is usable, fallback reports exhaustion and leaves the interrupted request unfinished.
+A missing or invalid configuration, missing group, absent Codex member, malformed member, unsupported effort, or a derived model absent from the capability catalog produces a visible warning naming the skipped entry and its repair. Members must declare an effort listed in `EFFORTS` in `extensions/lib/magpie-codex.ts`. The resolver also rejects Anthropic model names. An entry without configured credentials is skipped in silence, like any plain chain entry; chained steps continue to the next usable target, including the independent Inco provider. If none is usable, fallback reports exhaustion and leaves the interrupted request unfinished.
 
 Cooldowns and chain ordering use the resolved direct model identity. The original session thinking level is restored with its model after recovery. Model switches do not rewrite the group reference or Magpie's configuration.
 
