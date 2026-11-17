@@ -1,6 +1,7 @@
 /** Shapes crossing the ask_user_secret boundary: tool input and replayed result. */
-import { StringEnum } from '@earendil-works/pi-ai'
 import { Type } from 'typebox'
+
+import { BrokerReceiptSchema } from '#lib/human-dialog/schema.ts'
 
 import {
 	ENVIRONMENT_PATTERN,
@@ -11,8 +12,12 @@ import {
 
 import type { Static } from 'typebox'
 
-const SECRET_KINDS = ['password', 'token', 'code', 'other'] as const
-const DESTINATIONS = ['browser', 'infisical'] as const
+export const MAX_SECRET_LENGTH = 4096
+export const SecretValueSchema = Type.String({
+	minLength: 1,
+	maxLength: MAX_SECRET_LENGTH,
+	pattern: '^(?=.*\\S)[^\\r\\n\\u0000]+$',
+})
 
 const InfisicalTargetParams = Type.Object({
 	projectId: Type.String({ pattern: PROJECT_ID_PATTERN }),
@@ -39,10 +44,12 @@ export const SecretParams = Type.Object({
 		description:
 			'What the secret is, for the human: the account or site, and what it unlocks. Never the value.',
 	}),
-	kind: StringEnum(SECRET_KINDS, {
+	kind: Type.Enum(['password', 'token', 'code', 'other'], {
+		type: 'string',
 		description: 'Label shown to the human; it changes no behavior.',
 	}),
-	destination: StringEnum(DESTINATIONS, {
+	destination: Type.Enum(['browser', 'infisical'], {
+		type: 'string',
 		description:
 			'browser: the value is parked under a one-time handle for a frontend_batch type step on that origin. infisical: the value is written to the vault and only its key name comes back.',
 	}),
@@ -60,16 +67,21 @@ export const SecretParams = Type.Object({
 export const SecretResultSchema = Type.Union([
 	Type.Object({
 		status: Type.Literal('issued'),
+		broker: Type.Optional(BrokerReceiptSchema),
 		handle: Type.String(),
 		origin: Type.String(),
 		expiresAt: Type.Number(),
 	}),
 	Type.Object({
 		status: Type.Literal('stored'),
+		broker: Type.Optional(BrokerReceiptSchema),
 		target: Type.String(),
 		operation: Type.String(),
 	}),
-	Type.Object({ status: Type.Literal('cancelled') }),
+	Type.Object({
+		status: Type.Literal('cancelled'),
+		broker: Type.Optional(BrokerReceiptSchema),
+	}),
 ])
 
 export type SecretParamsType = Static<typeof SecretParams>

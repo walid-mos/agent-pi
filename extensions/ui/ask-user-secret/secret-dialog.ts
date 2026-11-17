@@ -3,6 +3,7 @@
  * paste; this component never renders its value, only one dot per character.
  */
 import { Input } from '@earendil-works/pi-tui'
+import { Value } from 'typebox/value'
 
 import { INSET } from '#lib/ui/align.ts'
 import { uiTheme } from '#lib/ui/design-system/theme.ts'
@@ -10,11 +11,13 @@ import { blockTitle, framedBlock, frameContentWidth } from '#lib/ui/frame.ts'
 import { showHumanDialog } from '#lib/ui/human-dialog.ts'
 import { pushWrapped } from '#lib/ui/terminal-text.ts'
 
+import { MAX_SECRET_LENGTH, SecretValueSchema } from './schema.ts'
+
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import type { Component, Focusable, TUI } from '@earendil-works/pi-tui'
+import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type { DialogComponent } from '#lib/ui/human-dialog.ts'
 
-const MAX_SECRET_LENGTH = 4096
 const ENTRY_TIMEOUT_MS = 300_000
 const MASK = '•'
 const CURSOR = '▏'
@@ -25,13 +28,13 @@ export interface SecretPrompt {
 	readonly destination: string
 }
 
-class SecretDialog implements Component, Focusable, DialogComponent {
+export class SecretDialog implements Component, Focusable, DialogComponent {
 	private readonly input = new Input()
 	private readonly timer: NodeJS.Timeout
 	private settled = false
 
 	constructor(
-		private readonly tui: TUI,
+		private readonly tui: Pick<TUI, 'requestRender'>,
 		private readonly prompt: SecretPrompt,
 		private readonly done: (value: string | undefined) => void,
 	) {
@@ -105,7 +108,7 @@ class SecretDialog implements Component, Focusable, DialogComponent {
 	}
 
 	private submit(typed: string): void {
-		if (!typed.length || typed.length > MAX_SECRET_LENGTH) {
+		if (!Value.Check(SecretValueSchema, typed)) {
 			this.tui.requestRender()
 			return
 		}
@@ -126,8 +129,10 @@ export function showSecretDialog(
 	context: ExtensionContext,
 	signal: AbortSignal | undefined,
 	prompt: SecretPrompt,
+	completion?: DialogCompletion<string | undefined>,
 ): Promise<string | undefined> {
 	return showHumanDialog<string | undefined>(context, signal, {
+		completion,
 		build: (tui, _theme, _keybindings, done) =>
 			new SecretDialog(tui, prompt, done),
 		cancelled: () => undefined,

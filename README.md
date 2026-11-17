@@ -67,6 +67,10 @@ The `dotfiles-sync` and `dotfiles-pull` skills and `bin/chezmoi-reconcile` keep 
 
 Keep one publisher per source repository. Without the file, `chezmoi-reconcile` does nothing and both skills stop and ask for it.
 
+## Pots human dialogs
+
+The question and secret tools support explicit pot opt-in, shared terminal/Discord settlement and private browser handoff. See [configuration, destination support and rollout](extensions/lib/human-dialog/README.md). Work-center startup approvals use the broker independently of Pi worker tools.
+
 ## Source audit
 
 `fallow-plugin-pi.json` registers the Pi extension entrypoints, their required `Component.invalidate` hook, and the setup command as developer tooling. It also registers `bin/lib/pi-token.mjs`, whose callers are extensionless Node executables that Fallow does not parse. `.fallowrc.json` identifies the one viewer CSS URL filled by Python `str.format` at request time.

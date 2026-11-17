@@ -157,6 +157,10 @@ class QuestionnaireDialog implements CustomComponent {
 		this.inputController.handleInput(keystrokes)
 	}
 
+	dispose(): void {
+		this.dismiss()
+	}
+
 	private refresh(): void {
 		// Answers and drafts may have replaced their alias text in this batch.
 		this.captures.prune(() => this.state.aliasReferenceTexts())

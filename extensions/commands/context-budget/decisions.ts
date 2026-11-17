@@ -51,6 +51,7 @@ function decisionRecord(entry: BranchEntries[number]): DecisionRecord[] {
 			receipt: JSON.stringify({
 				decisions: decisions(questions, answers),
 				cancelled: field(details, 'cancelled'),
+				broker: field(details, 'broker'),
 			}),
 		},
 	]
