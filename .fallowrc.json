@@ -1,3 +1,4 @@
 {
+	"dynamicallyLoaded": ["skills/html-report-design/templates/**/*.css"],
 	"ignoreUnresolvedImports": ["./[{]assets[}]/viewer.css"]
 }
