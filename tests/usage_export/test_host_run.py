@@ -7,6 +7,8 @@ from support import CANARY
 
 TOTALS = {"requests": 2, "input": 200, "output": 40, "cache_read": 20, "cache_write": 8,
           "cache_write_1h": 2, "reasoning": 10}
+ONE = {"requests": 1, "input": 100, "output": 20, "cache_read": 10, "cache_write": 4,
+       "cache_write_1h": 1, "reasoning": 5}
 
 
 class HostRunTests(HostCase):
@@ -69,6 +71,15 @@ class HostRunTests(HostCase):
         self.assertEqual(process.returncode, 128 + signal.SIGTERM)
         self.assertEqual(list(self.temporary.iterdir()), [])
 
+    def test_a_magpie_csv_without_the_estimate_columns_is_treated_as_failed(self):
+        self.append(self.row())
+        directory = self.install_magpie([self.row()])
+        (directory / "magpie.csv").write_text("time,requested_model\n2026-11-17 09:00:00,group/router\n")
+        receipt = self.receipt()
+        self.assertEqual((receipt["snapshot"], receipt["estimates_applied"]), ("magpie-failed", False))
+        self.assertIsNone(self.events()[0]["cost"]["estimate_usd"])
+        self.assertEqual(list(self.temporary.iterdir()), [])
+
     def test_a_failed_export_prints_its_receipt_and_removes_the_snapshot(self):
         self.append(self.row())
         self.install_magpie([self.row()])
@@ -85,7 +96,8 @@ class HostRunTests(HostCase):
         self.append(*rows, {"t": "2026-11-17T10:00:02Z", "kind": "model_list", "status": 0})
         self.install_magpie(rows)
         self.assertEqual(self.receipt()["reconcile"],
-                         [{"day": "2026-11-17", "matches": True, "csv": TOTALS, "export": TOTALS}])
+                         [{"day": "2026-11-17", "matches": True, "csv": TOTALS, "csv_unique": TOTALS,
+                           "export": TOTALS}])
 
     def test_a_duplicated_ledger_line_does_not_count_twice(self):
         first = self.row(t="2026-11-16T09:00:00Z", response_id="first")
@@ -94,7 +106,18 @@ class HostRunTests(HostCase):
         self.install_magpie([first, repeated, repeated])
         entry, = self.receipt()["reconcile"]
         self.assertEqual((entry["day"], entry["matches"]), ("2026-11-17", True))
-        self.assertEqual((entry["csv"]["requests"], entry["export"]["requests"]), (1, 1))
+        self.assertEqual((entry["csv"]["requests"], entry["csv_unique"]["requests"]), (2, 1))
+        self.assertEqual(entry["export"], ONE)
+
+    def test_a_csv_row_hiding_two_distinct_events_still_matches(self):
+        first = self.row(t="2026-11-16T09:00:00Z", response_id="first")
+        work = self.row(t="2026-11-17T10:00:00Z", response_id="work")
+        self.append(first, work, {**work, "session": "other"})
+        self.install_magpie([first, work, work])
+        entry, = self.receipt()["reconcile"]
+        self.assertEqual((entry["day"], entry["matches"]), ("2026-11-17", True))
+        self.assertEqual((entry["csv"]["requests"], entry["csv_unique"]["requests"]), (2, 1))
+        self.assertEqual(entry["export"], TOTALS)
 
     def test_a_closed_day_with_a_row_missing_from_the_export_exits_non_zero(self):
         rows = self.ledger_rows()

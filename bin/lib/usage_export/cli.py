@@ -17,6 +17,10 @@ BUSY = "usage-export: state is busy with another export. Wait for it to finish."
 FAILED = "usage-export: export failed. Check input format, private state, and output permissions. No source was changed."
 
 
+def utc_now():
+    return datetime.now(timezone.utc).isoformat()
+
+
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         self.exit(2, f"{self.prog.split()[0]}: invalid arguments. Run --help.\n")
@@ -35,7 +39,7 @@ def parser():
     export.add_argument("--from", dest="start", required=True, help="First UTC date to list")
     export.add_argument("--through", required=True, help="Last UTC date to list, inclusive")
     export.add_argument("--timezone", required=True, help="IANA report timezone")
-    export.add_argument("--now", default=datetime.now(timezone.utc).isoformat(), help="Explicit scan clock")
+    export.add_argument("--now", default=utc_now(), help="Explicit scan clock")
     export.add_argument("--rescan", action="store_true", help="Reconcile the entire retained ledger")
     export.add_argument("--catalog", type=Path, help="Reviewed public categorical labels")
     export.add_argument("--estimates", type=Path, help="Isolated magpie usage --csv all snapshot")

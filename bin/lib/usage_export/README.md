@@ -82,9 +82,9 @@ The output folder sits in the tree the `tailnet-link` file server serves in plac
 
 A run does four things:
 
-1. When `magpie` is on `PATH` or at `~/.local/bin/magpie`, it writes `magpie usage --csv all` into a private temporary file, mode 0600, outside the state, output and ledger folders. It passes that file with `--estimates`, and its own clock with `--price-snapshot-at`. The file is removed on every exit, a termination signal included. Without `magpie`, or when `magpie` fails, the export runs without estimates.
+1. When `magpie` is on `PATH` or at `~/.local/bin/magpie`, it writes `magpie usage --csv all` into a private temporary file, mode 0600, outside the state, output and ledger folders. It passes that file with `--estimates`, and its own clock with `--price-snapshot-at`. The file is removed on every exit, a termination signal included. Without `magpie`, when `magpie` fails, or when its output lacks the estimate columns, the export runs without estimates.
 2. It runs the export.
-3. It reconciles each closed UTC day of the window that the snapshot covers: CSV rows against exported workload and routing-overhead events, as requests and tokens by type. `model_list` rows, and rows whose kind the ledger rejects, are in neither count. A row repeated verbatim counts once, as the export collapses identical ledger lines into one event. A covered day comes after the first day of the snapshot and after the first exported day, because either side's first day can be truncated. It has also been closed for an hour, so a request logged after the snapshot near midnight cannot make it differ.
+3. It reconciles each closed UTC day of the window that the snapshot covers, as requests and tokens by type against the exported workload and routing-overhead events. The CSV side carries two figures: `csv` counts every row, and `csv_unique` counts rows that differ in at least one CSV column. The export side counts stored events, whose identity also covers fields the CSV leaves out, such as the session and the route. A day matches when the export counts equal either figure, so a ledger line written twice and two distinct events that look identical in the CSV both match. `model_list` rows, and rows whose kind the ledger rejects, are in neither count. A covered day comes after the first exported day and after the snapshot's first row, because either side can be truncated. It has also been closed for an hour, so a request logged after the snapshot near midnight cannot make it differ.
 4. It prints one JSON receipt on one line:
 
 ```json
@@ -95,11 +95,13 @@ A run does four things:
  "reconcile": [{"day": "2026-11-17", "matches": true,
                 "csv": {"requests": 2, "input": 200, "output": 40, "cache_read": 20, "cache_write": 8,
                         "cache_write_1h": 2, "reasoning": 10},
+                "csv_unique": {"requests": 2, "input": 200, "output": 40, "cache_read": 20, "cache_write": 8,
+                               "cache_write_1h": 2, "reasoning": 10},
                 "export": {"requests": 2, "input": 200, "output": 40, "cache_read": 20, "cache_write": 8,
                            "cache_write_1h": 2, "reasoning": 10}}]}
 ```
 
-`export` is `null` when the export failed. `snapshot` is `taken`, `magpie-missing` or `magpie-failed`. The receipt holds counts, dates and the host identity, never a raw value, a path or a label. The command exits 0 when the export succeeded and every reconciled day matches. It exits 1 when the export failed or a reconciled day differs, still printing the receipt, with fixed text on stderr. A termination signal exits with 128 plus the signal number.
+`export` is `null` when the export failed. `snapshot` is `taken`, `magpie-missing` or `magpie-failed`. `estimates_applied` is true when the export ran with a snapshot file, whatever number of events that snapshot priced. The receipt holds counts, dates and the host identity, never a raw value, a path or a label. The command exits 0 when the export succeeded and every reconciled day matches. It exits 1 when the export failed, a reconciled day differs, or the reconcile itself failed, still printing the receipt, with fixed text on stderr. A termination signal exits with 128 plus the signal number.
 
 ### Enrollment
 

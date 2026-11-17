@@ -14,6 +14,7 @@ from .schema import encode
 PRIVATE_DIRECTORY = 0o700
 PRIVATE_FILE = 0o600
 MAX_LINE_BYTES = 1024 * 1024
+BUSY_TIMEOUT_SECONDS = 30
 
 
 def private_directory(path):
@@ -70,7 +71,8 @@ def state_database(path):
 
 @contextmanager
 def read_only_database(path):
-    database = sqlite3.connect((path / "usage.sqlite").as_uri() + "?mode=ro", uri=True)
+    database = sqlite3.connect((path / "usage.sqlite").as_uri() + "?mode=ro", uri=True,
+                               timeout=BUSY_TIMEOUT_SECONDS)
     try:
         yield database
     finally:

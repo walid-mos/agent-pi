@@ -1,10 +1,10 @@
 import signal
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from pathlib import Path
 
 from .catalog import candidates, catalog_labels
-from .cli import Parser, attempt_export
+from .cli import Parser, attempt_export, utc_now
 from .host_layout import TIMEZONE, WINDOW_DAYS, host_layout
 from .normalize import instant
 from .publish import read_manifest
@@ -16,6 +16,7 @@ from .storage import read_only_database
 SIGNAL_EXIT_BASE = 128
 DIFFERS = "usage-export-host: a closed day differs from the Magpie snapshot. See the reconcile counts."
 RUN_FAILED = "usage-export-host: run failed. No source was changed."
+RECONCILE_FAILED = "usage-export-host: reconcile failed. The export itself completed."
 NO_STATE = "usage-export-host: no export state yet. Run usage-export-host first."
 CANDIDATES_FAILED = "usage-export-host: candidates failed. Check the catalog and private state."
 
@@ -24,7 +25,7 @@ def host_parser():
     root = Parser(prog="usage-export-host", description="Export this host's Magpie usage on its standard paths. No network or installation.")
     root.add_argument("command", nargs="?", choices=("run", "candidates"), default="run",
                       help="run: snapshot prices, export, reconcile. candidates: list unlabelled catalog values")
-    root.add_argument("--now", default=datetime.now(timezone.utc).isoformat(), help="Explicit run clock")
+    root.add_argument("--now", default=utc_now(), help="Explicit run clock")
     return root
 
 
@@ -40,10 +41,21 @@ def export_fields(layout, now, snapshot):
             "price_snapshot_at": now if snapshot else None}
 
 
+def reconciled_days(layout, receipt, snapshot, now):
+    if receipt is None or snapshot is None:
+        return []
+    try:
+        return reconcile(read_manifest(layout.output), snapshot, now)
+    except Exception:
+        return None
+
+
 def run(layout, now):
     with price_snapshot(layout.magpie) as snapshot:
         receipt, failure = attempt_export(export_fields(layout, now, snapshot.path))
-        days = reconcile(read_manifest(layout.output), snapshot.path, now) if receipt and snapshot.path else []
+        days = reconciled_days(layout, receipt, snapshot.path, now)
+        if days is None:
+            days, failure = [], failure or RECONCILE_FAILED
     print(encode({"export": receipt, "snapshot": snapshot.status, "reconcile": days,
                   "estimates_applied": receipt is not None and snapshot.path is not None}))
     if not failure and not all(day["matches"] for day in days):

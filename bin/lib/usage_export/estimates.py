@@ -67,12 +67,16 @@ def csv_rows(stream, digest=None):
     return csv.DictReader(lines())
 
 
+def has_estimate_columns(fieldnames):
+    return set(CSV_FIELDS.values()).union({"cost_usd"}) <= set(fieldnames or [])
+
+
 def load_estimates(database, host, run):
     database.execute("DELETE FROM estimates")
     digest = hashlib.sha256()
     with run.estimates.open("rb") as stream:
         reader = csv_rows(stream, digest)
-        if not set(CSV_FIELDS.values()).union({"cost_usd"}) <= set(reader.fieldnames or []):
+        if not has_estimate_columns(reader.fieldnames):
             raise ValueError("unsupported CSV header")
         for raw in reader:
             insert_estimate(database, host, raw)
