@@ -135,8 +135,8 @@ test('applies cooldown and chain order to resolved identities after a Codex fail
 	assert.deepEqual(
 		session.candidatesAfter(
 			'openai-codex/gpt-6.1-sol',
-			1,
 			targets.map(target => target.reference),
+			1,
 		),
 		['openai-codex/gpt-6-luna'],
 	)

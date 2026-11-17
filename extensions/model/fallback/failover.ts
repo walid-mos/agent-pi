@@ -133,8 +133,8 @@ async function switchToNextModel(
 	)
 	const [next] = session.candidatesAfter(
 		failure.model,
-		now,
 		targets.map(target => target.reference),
+		now,
 	)
 	const target = targets.find(candidate => candidate.reference === next)
 	if (!target) {
