@@ -1,7 +1,7 @@
 import gzip
 import json
 
-from .schema import DAY_ENTRY, MANIFEST, TOKENS, VERSION, encode, validate
+from .schema import DAY_ENTRY, MANIFEST, TOKENS, TOTAL, VERSION, encode, validate
 from .storage import file_digest, private_directory, read_json, write_durably
 
 MANIFEST_FILE = "manifest.json"
@@ -11,8 +11,7 @@ MAX_MANIFEST_BYTES = (MAX_REPORT_DAYS + 1) * MAX_DAY_ENTRY_BYTES
 
 
 def empty_total():
-    return {"events": 0, "unpriced_events": 0, "missing_token_events": 0,
-            "missing_duration_events": 0, "estimate_usd": None, "request_ms_sum": None,
+    return {**dict.fromkeys(TOTAL["properties"], 0), "estimate_usd": None, "request_ms_sum": None,
             "tokens": dict.fromkeys(TOKENS["properties"])}
 
 
@@ -66,8 +65,8 @@ def write_day(database, directory, day):
 
 
 def missing_day(day):
-    return {"day": day, "coverage": "missing", "file": None, "sha256": None, "bytes": None,
-            "workload": None, "overhead": None, "late_events": 0, "conflicting_id_events": 0}
+    return {**dict.fromkeys(DAY_ENTRY["properties"]), "day": day, "coverage": "missing",
+            "late_events": 0, "conflicting_id_events": 0}
 
 
 def day_entry(database, day):
@@ -75,33 +74,26 @@ def day_entry(database, day):
     return json.loads(saved[0]) if saved else missing_day(day)
 
 
-def verified_entry(database, directory, day):
-    saved = database.execute("SELECT entry FROM published WHERE day=?", (day,)).fetchone()
-    if not saved:
-        return None
-    entry = json.loads(saved[0])
+def is_intact(directory, entry):
     path = directory.parent / entry["file"]
-    if path.is_file() and file_digest(path) == entry["sha256"]:
-        return entry
-    return None
+    return path.is_file() and file_digest(path) == entry["sha256"]
 
 
-def repair_published(database, directory):
-    for (day,) in database.execute("SELECT day FROM published ORDER BY day").fetchall():
-        if verified_entry(database, directory, day) is None:
-            entry = write_day(database, directory, day)
-            database.execute("INSERT OR REPLACE INTO published VALUES (?, ?)", (day, encode(entry)))
+def stale_days(database, directory):
+    dirty = {day for (day,) in database.execute("SELECT day FROM dirty")}
+    published = database.execute("SELECT day, entry FROM published").fetchall()
+    damaged = {day for day, entry in published if day not in dirty and not is_intact(directory, json.loads(entry))}
+    return sorted(dirty | damaged)
 
 
 def publish(database, identity, run, scan):
     private_directory(run.output)
     directory = run.output / "days"
     private_directory(directory)
-    for (day,) in database.execute("SELECT day FROM dirty ORDER BY day"):
+    for day in stale_days(database, directory):
         entry = write_day(database, directory, day)
         database.execute("INSERT OR REPLACE INTO published VALUES (?, ?)", (day, encode(entry)))
     database.execute("DELETE FROM dirty")
-    repair_published(database, directory)
     first, last = database.execute("SELECT MIN(stamp), MAX(stamp) FROM events").fetchone()
     manifest = {"schema_version": VERSION, "host_uuid": identity["host_uuid"],
                 "source_ref": identity["source_ref"], "source": "magpie-ledger",

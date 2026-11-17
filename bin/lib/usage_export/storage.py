@@ -72,10 +72,10 @@ def identity(database):
     row = database.execute("SELECT value FROM metadata WHERE key='identity'").fetchone()
     if row:
         result = json.loads(row[0])
-        return {**result, "salt": bytes.fromhex(result["salt"])}
-    result = {key: secrets.token_hex(32) for key in ("host_uuid", "source_ref", "salt")}
-    database.execute("INSERT INTO metadata VALUES ('identity', ?)", (encode(result),))
-    database.commit()
+    else:
+        result = {key: secrets.token_hex(32) for key in ("host_uuid", "source_ref", "salt")}
+        database.execute("INSERT INTO metadata VALUES ('identity', ?)", (encode(result),))
+        database.commit()
     return {**result, "salt": bytes.fromhex(result["salt"])}
 
 
@@ -100,14 +100,28 @@ def file_digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+class HashingWriter:
+    def __init__(self, stream):
+        self.stream = stream
+        self.hash = hashlib.sha256()
+
+    def write(self, data):
+        self.hash.update(data)
+        return self.stream.write(data)
+
+    def flush(self):
+        self.stream.flush()
+
+
 def write_durably(directory, write, name_for):
     descriptor, pending = tempfile.mkstemp(prefix=".pending-", dir=directory)
     try:
         with os.fdopen(descriptor, "wb") as stream:
-            write(stream)
+            hashing = HashingWriter(stream)
+            write(hashing)
             stream.flush()
             os.fsync(stream.fileno())
-        digest = file_digest(Path(pending))
+        digest = hashing.hash.hexdigest()
         target = directory / name_for(digest)
         os.replace(pending, target)
         sync_directory(directory)
