@@ -57,6 +57,14 @@ function plainTarget(
 	return { reference: modelReference(model), model, thinkingLevel: undefined }
 }
 
+export function levelForTarget(
+	groupLevel: ModelThinkingLevel | undefined,
+	sessionLevel: ModelThinkingLevel | undefined,
+	previousLevel: ModelThinkingLevel,
+): ModelThinkingLevel {
+	return groupLevel ?? sessionLevel ?? previousLevel
+}
+
 export function resolveFallbackChain(
 	chain: readonly string[],
 	registry: Registry,

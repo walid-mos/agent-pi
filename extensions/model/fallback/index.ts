@@ -111,13 +111,13 @@ function loadConfiguredSession(ctx: ExtensionContext): ModelFallbackConfig {
 function watchSession(pi: ExtensionAPI, session: FallbackSession): void {
 	pi.on('session_start', (_event, ctx) => {
 		session.startSession(loadConfiguredSession(ctx))
-		endFallback(ctx, session)
+		endFallback(pi, ctx, session)
 		// Pi cannot unregister a built-in command, so the menu is filtered
 		// instead: the unified surface is the one the user sees.
 		ctx.ui.addAutocompleteProvider(createModelCommandFilter)
 	})
 	pi.on('session_shutdown', (_event, ctx) => {
-		endFallback(ctx, session)
+		endFallback(pi, ctx, session)
 	})
 }
 
@@ -219,7 +219,7 @@ function watchBoundaries(pi: ExtensionAPI, session: FallbackSession): void {
 function watchModelSelection(pi: ExtensionAPI, session: FallbackSession): void {
 	pi.on('model_select', (event, ctx) => {
 		if (session.consumeSwitch(modelReference(event.model))) return
-		endFallback(ctx, session)
+		endFallback(pi, ctx, session)
 	})
 }
 

@@ -9,7 +9,10 @@ import { ModelRegistry, ModelRuntime } from '@earendil-works/pi-coding-agent'
 
 import { defaultConfig } from '../extensions/model/fallback/config.ts'
 import { FallbackSession } from '../extensions/model/fallback/fallback-session.ts'
-import { resolveFallbackChain } from '../extensions/model/fallback/targets.ts'
+import {
+	resolveFallbackChain,
+	levelForTarget,
+} from '../extensions/model/fallback/targets.ts'
 
 import type { TestContext } from 'node:test'
 
@@ -152,4 +155,10 @@ test('retains the original thinking level across fallback hops and clears it on 
 	session.markFallbackActive('magpie/group/expert', 'high')
 	session.startSession(defaultConfig())
 	assert.equal(session.thinkingLevelToRestore(), undefined)
+})
+
+test('runs each chain hop at its own level: the group effort, else the session level, else the level in force', () => {
+	assert.equal(levelForTarget('medium', 'xhigh', 'low'), 'medium')
+	assert.equal(levelForTarget(undefined, 'xhigh', 'medium'), 'xhigh')
+	assert.equal(levelForTarget(undefined, undefined, 'high'), 'high')
 })
