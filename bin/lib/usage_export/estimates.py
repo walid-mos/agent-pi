@@ -5,8 +5,7 @@ import math
 import re
 
 from .normalize import MAX_NUMBER, TOKEN_FIELDS, numeric, opaque, text, timestamp, unknown_cost
-from .schema import encode
-from .storage import MAX_LINE_BYTES
+from .storage import MAX_LINE_BYTES, rewrite_event
 
 CSV_FIELDS = {"t": "time", "req": "requested_model", "provider": "provider", "served": "served_model",
               "in": "input_tokens", "out": "output_tokens", "cache_read": "cache_read_tokens",
@@ -95,9 +94,7 @@ def insert_estimate(database, host, raw):
 
 
 def set_cost(database, identifier, day, event, cost):
-    event["cost"] = cost
-    database.execute("UPDATE events SET event=? WHERE id=?", (encode(event), identifier))
-    database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
+    rewrite_event(database, identifier, day, {**event, "cost": cost})
 
 
 def revoke(database, query):
