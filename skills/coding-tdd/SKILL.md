@@ -8,19 +8,17 @@ description: >-
     expectation.
 ---
 
-# Test pace
+# Test-driven work
 
 Follow `~/.pi/agent/AGENTS.md` under Tests. This skill adds the work order.
 
-## Pick the pace
+## Pick the work order
 
 | The change | Work order |
 |---|---|
 | Fixes a reproduced defect: wrong result, crash, wrong state or regression | Reproduce it through a public interface. Write one test named after it. Run it and show red, apply the smallest fix, then show green. |
 | Adds a unit whose behaviour branches on input or state: pure function, reducer, validation, permission, money rule, stateful hook or component | State each observable requirement. Write one failing test for the next requirement, implement enough to pass, then refactor with the test green. Repeat only for another stated requirement. |
 | Presentation, wording, wiring, configuration, dependencies, builds, renames, behaviour-preserving refactors, prototypes, one-off scripts, docs | Build directly. Run the existing checks that cover the change. |
-
-A human request for tests sets its own scope.
 
 ## Triage a failing test
 
