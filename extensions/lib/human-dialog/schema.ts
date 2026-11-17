@@ -30,7 +30,7 @@ const ClickSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 )
-export const BrokerResultSchema = Type.Union([
+const BrokerResultSchema = Type.Union([
 	Type.Object(
 		{
 			status: Type.Literal('answered'),
@@ -118,14 +118,13 @@ export type BrokerQuestion = {
 	multiple: boolean
 	options: { label: string; detail: string; recommended: boolean }[]
 }
-type BrokerBrowserTarget = {
-	destination: 'browser'
-	origin: string
-	socket: string
-	capability: string
-}
 export type BrokerTarget =
-	| BrokerBrowserTarget
+	| {
+			destination: 'browser'
+			origin: string
+			socket: string
+			capability: string
+	  }
 	| {
 			destination: 'infisical'
 			projectId: string

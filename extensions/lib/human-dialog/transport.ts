@@ -58,8 +58,7 @@ export function brokerTransport(script: string): BrokerTransport {
 				if (hasFailed) return
 				if (code !== 0) return fail()
 				try {
-					const receipt: unknown = JSON.parse(stdout)
-					resolve(receipt)
+					resolve(JSON.parse(stdout))
 				} catch {
 					fail()
 				}

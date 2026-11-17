@@ -28,6 +28,7 @@ const Incoming = Type.Object(
 )
 
 type Parked = { handle: string; expiresAt: number; handoff: string }
+type Binding = { dialog: string; source: BrokerSource; origin: string }
 
 export class BrowserSecretOwner {
 	readonly capability = randomBytes(CAPABILITY_BYTES).toString('base64url')
@@ -42,19 +43,9 @@ export class BrowserSecretOwner {
 	)
 	private receiptTimer: NodeJS.Timeout | undefined
 
-	private constructor(
-		private readonly binding: {
-			dialog: string
-			source: BrokerSource
-			origin: string
-		},
-	) {}
+	private constructor(private readonly binding: Binding) {}
 
-	static async open(binding: {
-		dialog: string
-		source: BrokerSource
-		origin: string
-	}): Promise<BrowserSecretOwner> {
+	static async open(binding: Binding): Promise<BrowserSecretOwner> {
 		const owner = new BrowserSecretOwner(binding)
 		try {
 			const largestFrame = JSON.stringify({
@@ -85,13 +76,16 @@ export class BrowserSecretOwner {
 		return this.lifetime.signal
 	}
 
-	confirm(receipt: { dialog: string; origin: string; handoff: string }): {
+	confirm(receipt: {
+		dialog: string
+		origin: string
+		handoff: string | undefined
+	}): {
 		handle: string
 		expiresAt: number
 	} {
 		const { parked } = this
 		if (
-			this.isClosed ||
 			this.isConfirmed ||
 			this.signal.aborted ||
 			!parked ||
@@ -129,15 +123,10 @@ export class BrowserSecretOwner {
 		)
 	}
 
-	private accept(candidate: unknown): {
-		version: 1
-		dialog: string
-		source: BrokerSource
-		origin: string
-		handoff: string
-	} {
+	private accept(
+		candidate: unknown,
+	): Binding & { version: 1; handoff: string } {
 		if (
-			this.isClosed ||
 			this.signal.aborted ||
 			this.parked ||
 			!Value.Check(Incoming, candidate)

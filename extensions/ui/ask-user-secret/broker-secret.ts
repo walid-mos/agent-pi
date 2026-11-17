@@ -95,10 +95,6 @@ function browserSettlement(
 		key: 'SECRET',
 		signal: AbortSignal.any([owner.signal, ...(signal ? [signal] : [])]),
 		stored: (receipt, outcome) => {
-			if (!outcome.handoff)
-				throw new Error(
-					'Browser completion has no matching live handoff. Open a new tool call.',
-				)
 			const issued = owner.confirm({
 				dialog: receipt.id,
 				origin,

@@ -31,6 +31,7 @@ import type {
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
 import type { BrokerFactory } from '#lib/human-dialog/config.ts'
+import type { SecretRequest } from './request.ts'
 import type { SecretParamsType, SecretResult } from './schema.ts'
 
 interface RowState {
@@ -108,7 +109,7 @@ async function runSecretTool(
 }
 
 async function storeLocalSecret(
-	request: ReturnType<typeof parseRequest>,
+	request: SecretRequest,
 	typedSecret: string | undefined,
 	signal: AbortSignal | undefined,
 ): Promise<SecretResult> {

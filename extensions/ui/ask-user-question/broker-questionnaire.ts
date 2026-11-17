@@ -57,16 +57,7 @@ export async function brokerQuestionnaire(
 			wait: waiting,
 			submit: async outcome => {
 				local = outcome
-				const operation = submissionOperation(outcome)
-				const input =
-					operation === 'answer'
-						? {
-								answers: terminalAnswers(
-									questions,
-									outcome.answers,
-								),
-							}
-						: undefined
+				const { operation, input } = submission(questions, outcome)
 				return convert(await broker.perform(operation, input))
 			},
 		})
@@ -76,11 +67,19 @@ export async function brokerQuestionnaire(
 	}
 }
 
-function submissionOperation(
+function submission(
+	questions: Question[],
 	outcome: AskResult,
-): 'pause' | 'cancel' | 'answer' {
-	if (outcome.chat) return 'pause'
-	return outcome.cancelled ? 'cancel' : 'answer'
+): {
+	operation: 'pause' | 'cancel' | 'answer'
+	input?: { answers: BrokerAnswer[] }
+} {
+	if (outcome.chat) return { operation: 'pause' }
+	if (outcome.cancelled) return { operation: 'cancel' }
+	return {
+		operation: 'answer',
+		input: { answers: terminalAnswers(questions, outcome.answers) },
+	}
 }
 
 function terminalAnswers(

@@ -149,7 +149,8 @@ async function runAskTool(
 		const outcome = broker
 			? await brokerQuestionnaire(broker, questions, show, signal)
 			: await show()
-		if (outcome.chat) return pausedResult(session, key, outcome)
+		if (outcome.chat)
+			return pausedResult(session, key, outcome, outcome.chat)
 		session.resumeStates.delete(key)
 		return completedResult(questions, outcome, captures)
 	} finally {
@@ -161,12 +162,11 @@ function pausedResult(
 	session: AskSession,
 	key: string,
 	outcome: AskResult,
+	chat: NonNullable<AskResult['chat']>,
 ): AgentToolResult<AskResult> {
-	if (!outcome.chat)
-		throw new Error('Questionnaire pause requires its draft state.')
-	session.resumeStates.set(key, outcome.chat.initialState)
+	session.resumeStates.set(key, chat.initialState)
 	session.setMode('discussing')
-	session.sendFollowUp(chatFollowUp(outcome.chat.question))
+	session.sendFollowUp(chatFollowUp(chat.question))
 	return {
 		content: [{ type: 'text', text: 'Chat paused' }],
 		details: outcome,

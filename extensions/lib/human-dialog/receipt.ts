@@ -79,12 +79,13 @@ function checkResult(
 ): void {
 	const { result: outcome } = receipt
 	if (!outcome) return
-	if (outcome.status === 'stored' && request.kind !== 'secret')
-		throw new Error(
-			'Human dialog broker returned a secret receipt for a question.',
-		)
-	if (outcome.status === 'stored' && request.kind === 'secret')
-		checkSecretTarget(outcome, request.target, receipt, deliveryId)
+	if (outcome.status === 'stored') {
+		if (request.kind !== 'secret')
+			throw new Error(
+				'Human dialog broker returned a secret receipt for a question.',
+			)
+		return checkSecretTarget(outcome, request.target, receipt, deliveryId)
+	}
 	if (outcome.status !== 'answered') return
 	if (
 		request.kind !== 'question' ||
@@ -168,10 +169,8 @@ function checkAnswers(
 
 function checkEvidence(request: QuestionRequest, outcome: Answered): void {
 	const clicks = outcome.evidence?.clicks ?? []
-	if (!outcome.request || clicks.length !== request.questions.length)
-		throw new Error(
-			'Discord answer has no request or complete click evidence.',
-		)
+	if (clicks.length !== request.questions.length)
+		throw new Error('Discord answer has no complete click evidence.')
 	for (const question of request.questions) {
 		const matches = clicks.filter(click => click.question === question.id)
 		const [click] = matches
