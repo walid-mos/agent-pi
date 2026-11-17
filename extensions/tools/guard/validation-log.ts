@@ -9,12 +9,17 @@ export type RecordedStep = ValidationStep & {
 	warning?: string
 }
 
+/** Where a logged validation writes its pipeline exit codes, one per line. */
+export function exitCodesPath(record: CommandEvidence): string {
+	return `${record.receiptPath}.codes`
+}
+
 function loggedValidation(
 	command: ValidationCommand,
 	record: CommandEvidence,
 ): string {
 	const log = quote(record.logPath)
-	const codes = quote(`${record.receiptPath}.codes`)
+	const codes = quote(exitCodesPath(record))
 	if (!command.filters.length)
 		return `set -o pipefail\n( ${command.base} ) 2>&1 | tee ${log}\n__pi_exit=$? __pi_codes=("\${PIPESTATUS[@]}")\nprintf '%s\\n' "\${__pi_codes[@]}" > ${codes}\nexit "$__pi_exit"`
 	// Filtering the saved file after completion prevents head/SIGPIPE from truncating the suite.

@@ -15,7 +15,7 @@ import { runtimeFor } from '#lib/runtime/runtime.ts'
 import { commandWorkspace } from './command-workspace.ts'
 import { execRemoteEvidence } from './remote-evidence.ts'
 import { validationCommand } from './shell-segments.ts'
-import { loggedSteps } from './validation-log.ts'
+import { exitCodesPath, loggedSteps } from './validation-log.ts'
 import { validationSteps } from './validation-steps.ts'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
@@ -53,7 +53,7 @@ async function saveEvidence(
 	pi: ExtensionAPI,
 	isCurrent: () => boolean,
 ): Promise<CommandEvidence> {
-	const codes = await readExitCodes(`${record.receiptPath}.codes`)
+	const codes = await readExitCodes(exitCodesPath(record))
 	const saved = {
 		...record,
 		endedAtMs: Date.now(),

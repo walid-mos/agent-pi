@@ -8,14 +8,13 @@ import { basename, dirname, join } from 'node:path'
 
 import { quote } from '#lib/shell-quote.ts'
 
-import { loggedSteps } from './validation-log.ts'
+import { exitCodesPath, loggedSteps } from './validation-log.ts'
 
 import type { ExecOptions } from '#lib/runtime/remote.ts'
 import type { Runtime } from '#lib/runtime/runtime.ts'
 import type { RecordedStep } from './validation-log.ts'
 
 const REMOTE_EVIDENCE_ROOT = '/tmp/pi-evidence'
-const CODES_SUFFIX = '.codes'
 
 type EvidencePair = { readonly local: string; readonly remote: string }
 
@@ -73,8 +72,8 @@ function evidencePairs(
 		return [
 			{ local: step.record.logPath, remote: remote.logPath },
 			{
-				local: `${step.record.receiptPath}${CODES_SUFFIX}`,
-				remote: `${remote.receiptPath}${CODES_SUFFIX}`,
+				local: exitCodesPath(step.record),
+				remote: exitCodesPath(remote),
 			},
 		]
 	})
