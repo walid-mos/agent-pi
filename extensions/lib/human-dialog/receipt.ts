@@ -4,9 +4,15 @@ import { Value } from 'typebox/value'
 
 import { BrokerReceiptSchema } from './schema.ts'
 
-import type { BrokerReceipt, BrokerRequest, BrokerResult } from './schema.ts'
+import type {
+	BrokerReceipt,
+	BrokerRequest,
+	BrokerResult,
+	BrokerTarget,
+	QuestionDialog,
+} from './schema.ts'
 
-type QuestionRequest = Extract<BrokerRequest, { kind: 'question' }>
+type QuestionRequest = BrokerRequest & QuestionDialog
 type Answered = Extract<BrokerResult, { status: 'answered' }>
 const ID_LENGTH = 32
 
@@ -56,7 +62,6 @@ export function checkedReceipt(
 	}
 	if (raw.result) receipt.result = raw.result
 	if (raw.delivery) receipt.delivery = { id: raw.delivery.id }
-	if (raw.isWriting) receipt.isWriting = true
 	return receipt
 }
 
@@ -91,7 +96,7 @@ function checkResult(receipt: BrokerReceipt, request: BrokerRequest): void {
 
 function checkSecretTarget(
 	outcome: Extract<BrokerResult, { status: 'stored' }>,
-	target: Extract<BrokerRequest, { kind: 'secret' }>['target'],
+	target: BrokerTarget,
 	receipt: BrokerReceipt,
 ): void {
 	if (

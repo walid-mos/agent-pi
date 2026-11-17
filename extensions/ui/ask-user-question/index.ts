@@ -41,6 +41,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import type { Static } from 'typebox'
 import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
+import type { BrokerFactory } from '#lib/human-dialog/config.ts'
 import type { QuestionnaireMode } from './questionnaire-events.ts'
 import type {
 	AskResult,
@@ -122,7 +123,7 @@ async function runAskTool(
 	}: {
 		context: ExtensionContext
 		signal: AbortSignal | undefined
-		createBroker: ReturnType<typeof configuredBroker>
+		createBroker: BrokerFactory | undefined
 	},
 ): Promise<AgentToolResult<AskResult>> {
 	if (context.mode !== 'tui')

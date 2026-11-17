@@ -3,8 +3,8 @@ import { normalizeQuestions } from './questionnaire-normalization.ts'
 
 import type { Static } from 'typebox'
 import type { BrokerDialog } from '#lib/human-dialog/broker.ts'
-import type { configuredBroker } from '#lib/human-dialog/config.ts'
-import type { BrokerRequest } from '#lib/human-dialog/schema.ts'
+import type { BrokerFactory } from '#lib/human-dialog/config.ts'
+import type { QuestionDialog } from '#lib/human-dialog/schema.ts'
 import type { Question } from './questionnaire-model.ts'
 import type { AskParams } from './schema.ts'
 
@@ -25,13 +25,10 @@ export function requestedQuestions(params: Params): Question[] {
 export function questionnaireBroker(
 	params: Params,
 	questions: Question[],
-	createBroker: ReturnType<typeof configuredBroker>,
+	createBroker: BrokerFactory | undefined,
 ): BrokerDialog | undefined {
 	if (!createBroker) return undefined
-	const request: Omit<
-		Extract<BrokerRequest, { kind: 'question' }>,
-		'source'
-	> = {
+	const request: QuestionDialog = {
 		kind: 'question',
 		policy: params.policy ?? 'ordinary',
 		context: params.context ?? '',

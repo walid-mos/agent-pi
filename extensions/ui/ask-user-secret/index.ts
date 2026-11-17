@@ -30,6 +30,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
+import type { BrokerFactory } from '#lib/human-dialog/config.ts'
 import type { SecretParamsType, SecretResult } from './schema.ts'
 
 interface RowState {
@@ -82,7 +83,7 @@ async function runSecretTool(
 	params: SecretParamsType,
 	context: ExtensionContext,
 	signal: AbortSignal | undefined,
-	createBroker: ReturnType<typeof configuredBroker>,
+	createBroker: BrokerFactory | undefined,
 ): Promise<AgentToolResult<SecretResult>> {
 	if (context.mode !== 'tui')
 		throw new Error('ask_user_secret requires interactive TUI mode')
