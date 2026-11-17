@@ -8,10 +8,9 @@ from .normalize import MAX_NUMBER, TOKEN_FIELDS, numeric, opaque, text, timestam
 from .storage import MAX_LINE_BYTES, rewrite_event
 
 CSV_FIELDS = {"t": "time", "req": "requested_model", "provider": "provider", "served": "served_model",
-              "in": "input_tokens", "out": "output_tokens", "cache_read": "cache_read_tokens",
-              "cache_write": "cache_write_tokens", "cache_write_1h": "cache_write_1h_tokens",
-              "reasoning": "reasoning_tokens", "ms": "duration_ms", "status": "status",
-              "response_id": "response_id", "rid": "request_id", "kind": "kind"}
+              **{field: f"{kind}_tokens" for kind, field in TOKEN_FIELDS.items()},
+              "ms": "duration_ms", "status": "status", "response_id": "response_id", "rid": "request_id",
+              "kind": "kind"}
 NUMERIC_FIELDS = (*TOKEN_FIELDS.values(), "ms", "status")
 SIBLINGS = "(SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)"
 PRICED = "json_extract(e.event, '$.cost.estimate_usd') IS NOT NULL"
