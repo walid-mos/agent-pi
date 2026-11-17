@@ -1,24 +1,12 @@
-import csv
 import json
 
 from support import ExportCase
 
-HEADERS = ["time", "requested_model", "provider", "served_model", "input_tokens", "output_tokens",
-           "cache_read_tokens", "cache_write_tokens", "cache_write_1h_tokens", "reasoning_tokens",
-           "duration_ms", "status", "response_id", "request_id", "kind", "cost_usd"]
 VALUES = ["2026-11-17T23:30:00Z", "group/router", "codex", "gpt-6.1-sol", 100, 20, 10, 4, 1, 5,
           250, 200, "response-a", "", "", "0.25"]
 
 
 class EstimateTests(ExportCase):
-    def estimates(self, rows):
-        path = self.fixture / "estimates.csv"
-        with path.open("w", newline="") as stream:
-            writer = csv.writer(stream)
-            writer.writerow(HEADERS)
-            writer.writerows(rows)
-        return path
-
     def test_available_estimate_has_snapshot_provenance_and_never_becomes_billed_cost(self):
         self.append(self.row(), self.row(kind="routing", response_id="routing"))
         snapshot = self.estimates([VALUES])

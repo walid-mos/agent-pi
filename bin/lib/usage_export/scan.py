@@ -105,11 +105,10 @@ def scan_ledger(database, identity, run):
         consume(stream, snapshot.st_size, identity, database, run, counters)
         end = stream.tell()
         boundary = anchor(stream, end)
+        is_unchanged = checkpoint and end == checkpoint["offset"] and boundary == checkpoint["anchor"]
         saved = {"device": snapshot.st_dev, "inode": snapshot.st_ino, "offset": end,
                  "anchor": boundary, "counters": counters,
-                 "last_scan_at": run.now}
-        if checkpoint and end == checkpoint["offset"] and boundary == checkpoint["anchor"]:
-            saved["last_scan_at"] = checkpoint["last_scan_at"]
+                 "last_scan_at": checkpoint["last_scan_at"] if is_unchanged else run.now}
         database.execute("INSERT OR REPLACE INTO metadata VALUES ('checkpoint', ?)", (encode(saved),))
     return Scan(summary={"ledger_bytes": end, **counters, "deferred_tail_bytes": snapshot.st_size - end},
                 read_bytes=snapshot.st_size - offset, last_scan_at=saved["last_scan_at"])

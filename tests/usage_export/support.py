@@ -1,3 +1,4 @@
+import csv
 import gzip
 import json
 import shutil
@@ -11,6 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "bin" / "usage-export"
 NOW = "2026-11-18T12:00:00Z"
+ESTIMATE_HEADERS = ["time", "requested_model", "provider", "served_model", "input_tokens", "output_tokens",
+                    "cache_read_tokens", "cache_write_tokens", "cache_write_1h_tokens", "reasoning_tokens",
+                    "duration_ms", "status", "response_id", "request_id", "kind", "cost_usd"]
 
 
 class ExportCase(unittest.TestCase):
@@ -70,6 +74,14 @@ class ExportCase(unittest.TestCase):
         result = self.invoke(arguments)
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         return result
+
+    def estimates(self, rows, name="estimates.csv", encoding="utf-8"):
+        path = self.fixture / name
+        with path.open("w", newline="", encoding=encoding) as stream:
+            writer = csv.writer(stream)
+            writer.writerow(ESTIMATE_HEADERS)
+            writer.writerows(rows)
+        return path
 
     def manifest(self):
         return json.loads((self.output / "manifest.json").read_text())

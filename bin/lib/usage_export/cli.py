@@ -77,7 +77,8 @@ def settings(options):
     if bool(options.estimates) != bool(options.price_snapshot_at):
         raise ValueError("estimate snapshot needs its timestamp")
     first, last = date.fromisoformat(options.start), date.fromisoformat(options.through)
-    if not 0 <= (last - first).days < MAX_REPORT_DAYS:
+    span = (last - first).days
+    if not 0 <= span < MAX_REPORT_DAYS:
         raise ValueError("invalid date window")
     ledger = options.ledger.absolute()
     state, output = (path.resolve() for path in (options.state, options.output))
@@ -89,7 +90,7 @@ def settings(options):
             raise ValueError("source must be separate")
     return Settings(
         ledger=ledger, state=state, output=output,
-        days=tuple((first + timedelta(days=offset)).isoformat() for offset in range((last - first).days + 1)),
+        days=tuple((first + timedelta(days=offset)).isoformat() for offset in range(span + 1)),
         zone=ZoneInfo(options.timezone), now=timestamp(options.now),
         rescan=options.rescan, catalog=catalog_labels(options.catalog), estimates=options.estimates,
         price_snapshot_at=timestamp(options.price_snapshot_at) if options.price_snapshot_at else None)
@@ -120,12 +121,12 @@ def main():
     try:
         options = parser().parse_args()
         if options.command == "schema":
-            print(encode(SCHEMA))
-            return 0
-        if options.command == "coverage":
-            print(encode(read_manifest(options.output)))
-            return 0
-        print(encode(export_usage(settings(options))))
+            result = SCHEMA
+        elif options.command == "coverage":
+            result = read_manifest(options.output)
+        else:
+            result = export_usage(settings(options))
+        print(encode(result))
         return 0
     except BlockingIOError:
         print("usage-export: state is busy with another export. Wait for it to finish.", file=sys.stderr)

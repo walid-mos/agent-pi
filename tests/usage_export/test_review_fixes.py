@@ -1,4 +1,3 @@
-import csv
 import fcntl
 import json
 import os
@@ -7,22 +6,11 @@ from pathlib import Path
 
 from support import CLI, ExportCase
 
-HEADERS = ["time", "requested_model", "provider", "served_model", "input_tokens", "output_tokens",
-           "cache_read_tokens", "cache_write_tokens", "cache_write_1h_tokens", "reasoning_tokens",
-           "duration_ms", "status", "response_id", "request_id", "kind", "cost_usd"]
 VALUES = ["2026-11-17 23:30:00", "group/router", "codex", "gpt-6.1-sol", 100, 20, 10, 4, 1, 5,
           250, 200, "response-a", "", "", "0.25"]
 
 
 class ReviewFixTests(ExportCase):
-    def estimates(self, rows, name="estimates.csv", encoding="utf-8"):
-        path = self.fixture / name
-        with path.open("w", newline="", encoding=encoding) as stream:
-            writer = csv.writer(stream)
-            writer.writerow(HEADERS)
-            writer.writerows(rows)
-        return path
-
     def test_deleted_or_corrupted_day_files_are_rebuilt_from_private_state(self):
         self.append(self.row())
         self.run_cli()

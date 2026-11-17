@@ -5,7 +5,6 @@ import re
 VERSION = 1
 DIGEST = {"type": "string", "pattern": "^[0-9a-f]{64}$"}
 COUNT = {"type": "integer", "minimum": 0}
-NUMBER = {"type": ["number", "null"], "minimum": 0}
 DAY = {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
 TIME = {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z$"}
 
@@ -22,6 +21,8 @@ def object_schema(**fields):
 def nullable(specification):
     return {"anyOf": [specification, {"type": "null"}]}
 
+
+NUMBER = nullable({"type": "number", "minimum": 0})
 
 REFERENCE = nullable(DIGEST)
 CATEGORY = object_schema(ref=REFERENCE, label=nullable({"type": "string", "maxLength": 120}))
@@ -75,9 +76,6 @@ def validate(value, specification):
             raise ValueError("schema violation")
         return
     kind = specification["type"]
-    if isinstance(kind, list):
-        validate(value, {**specification, "type": "null" if value is None else kind[0]})
-        return
     validators = {"null": lambda: value is None, "string": lambda: isinstance(value, str),
                   "integer": lambda: type(value) is int,
                   "number": lambda: type(value) in (int, float) and math.isfinite(value),
