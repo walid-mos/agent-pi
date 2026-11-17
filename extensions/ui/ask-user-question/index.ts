@@ -90,8 +90,8 @@ export default function askUserQuestion(pi: ExtensionAPI): void {
 				createBroker: configuredBroker(pi, context, call),
 			}),
 		renderCall(args, _theme, context) {
-			return new TranscriptComponent(width =>
-				context.state.answered ? [] : renderCallLines(args, width),
+			return TranscriptComponent.pending(context.state, width =>
+				renderCallLines(args, width),
 			)
 		},
 		renderResult(toolResult, _options, theme, context) {
