@@ -1,6 +1,7 @@
 /** Shapes crossing the ask_user_secret boundary: tool input and replayed result. */
-import { StringEnum } from '@earendil-works/pi-ai'
 import { Type } from 'typebox'
+
+import { BrokerReceiptSchema } from '#lib/human-dialog/schema.ts'
 
 import {
 	ENVIRONMENT_PATTERN,
@@ -10,9 +11,6 @@ import {
 } from '../../../security/infisical-target.ts'
 
 import type { Static } from 'typebox'
-
-const SECRET_KINDS = ['password', 'token', 'code', 'other'] as const
-const DESTINATIONS = ['browser', 'infisical'] as const
 
 const InfisicalTargetParams = Type.Object({
 	projectId: Type.String({ pattern: PROJECT_ID_PATTERN }),
@@ -39,13 +37,22 @@ export const SecretParams = Type.Object({
 		description:
 			'What the secret is, for the human: the account or site, and what it unlocks. Never the value.',
 	}),
-	kind: StringEnum(SECRET_KINDS, {
-		description: 'Label shown to the human; it changes no behavior.',
-	}),
-	destination: StringEnum(DESTINATIONS, {
-		description:
-			'browser: the value is parked under a one-time handle for a frontend_batch type step on that origin. infisical: the value is written to the vault and only its key name comes back.',
-	}),
+	kind: Type.Union(
+		[
+			Type.Literal('password'),
+			Type.Literal('token'),
+			Type.Literal('code'),
+			Type.Literal('other'),
+		],
+		{ description: 'Label shown to the human; it changes no behavior.' },
+	),
+	destination: Type.Union(
+		[Type.Literal('browser'), Type.Literal('infisical')],
+		{
+			description:
+				'browser: the value is parked under a one-time handle for a frontend_batch type step on that origin. infisical: the value is written to the vault and only its key name comes back.',
+		},
+	),
 	origin: Type.Optional(
 		Type.String({
 			minLength: 1,
@@ -60,16 +67,21 @@ export const SecretParams = Type.Object({
 export const SecretResultSchema = Type.Union([
 	Type.Object({
 		status: Type.Literal('issued'),
+		broker: Type.Optional(BrokerReceiptSchema),
 		handle: Type.String(),
 		origin: Type.String(),
 		expiresAt: Type.Number(),
 	}),
 	Type.Object({
 		status: Type.Literal('stored'),
+		broker: Type.Optional(BrokerReceiptSchema),
 		target: Type.String(),
 		operation: Type.String(),
 	}),
-	Type.Object({ status: Type.Literal('cancelled') }),
+	Type.Object({
+		status: Type.Literal('cancelled'),
+		broker: Type.Optional(BrokerReceiptSchema),
+	}),
 ])
 
 export type SecretParamsType = Static<typeof SecretParams>

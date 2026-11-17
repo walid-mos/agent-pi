@@ -30,6 +30,8 @@ Ownership map for `extensions/`, `extensions/lib/` and `lib/ui/`, grouped by bra
 
 ## Tools, guard and the workspace boundary
 
+- `extensions/lib/human-dialog/` owns broker configuration, transport, receipt validation and completion arbitration. The question and secret extensions own their request conversion and local dialogs. `extensions/ui/ask-user-secret/browser-owner.ts` owns each private socket lifetime and keeps the real frontend handle in-process until confirmation. Read [Pots human dialogs](extensions/lib/human-dialog/README.md) before changing this protocol or launcher opt-in.
+
 - `security/machine-identity.ts` owns local Universal Auth and the bound API domain. `bin/infisical` injects its token for CLI callers and checks the selected project before starting the CLI. `security/infisical-access.ts` owns the shared project check and the refusal report with project names and the human step. The browser broker and provider resolver use the shim, while secret-writing REST scripts call the shared check after login. `security/machine-identity.json` owns credential variable names and process exit codes. Authentication usage belongs in `skills/infisical/SKILL.md`.
 
 - `extensions/tools/guard/` owns the bash tool's job controls (admission limits, a foreground window the model can only lengthen, one progress read per running job, one completion notification delivered before the next model turn) on top of Pi's process-group cancellation and output accumulation. It governs model-issued commands only — not `!` shell input, `pi.exec` or MCP calls — and temporary receipts are evidence, not a job service.

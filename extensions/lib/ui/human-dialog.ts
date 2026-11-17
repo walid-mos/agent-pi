@@ -4,6 +4,8 @@
  * questionnaire and the secret prompt; the content of each dialog stays with
  * its owner.
  */
+import { bindCompletion } from '#lib/human-dialog/completion.ts'
+
 import type {
 	ExtensionContext,
 	KeybindingsManager,
@@ -15,6 +17,10 @@ import type {
 	Terminal,
 	TUI,
 } from '@earendil-works/pi-tui'
+import type {
+	DialogCompletion,
+	DialogOutcome,
+} from '#lib/human-dialog/completion.ts'
 
 export type DialogComponent = Component & { dispose?(): void }
 
@@ -31,6 +37,7 @@ export interface HumanDialog<T> {
 	readonly cancelled: () => T
 	/** Program-status message while the dialog waits, e.g. "Waiting for an answer". */
 	readonly waitingMessage: string
+	readonly completion?: DialogCompletion<T> | undefined
 }
 
 export async function showHumanDialog<T>(
@@ -42,10 +49,11 @@ export async function showHumanDialog<T>(
 	let removeAbortListener: (() => void) | undefined
 	signal?.throwIfAborted()
 	try {
-		const outcome = await context.ui.custom<T>(
+		const outcome = await context.ui.custom<DialogOutcome<T>>(
 			(tui, theme, keybindings, done) => {
-				const component = dialog.build(tui, theme, keybindings, done)
-				const abort = (): void => done(dialog.cancelled())
+				const submit = bindCompletion(dialog.completion, done)
+				const component = dialog.build(tui, theme, keybindings, submit)
+				const abort = (): void => submit(dialog.cancelled())
 				if (signal?.aborted) {
 					abort()
 					return component
@@ -64,7 +72,8 @@ export async function showHumanDialog<T>(
 			},
 		)
 		signal?.throwIfAborted()
-		return outcome
+		if (!outcome.ok) throw outcome.error
+		return outcome.value
 	} finally {
 		removeAbortListener?.()
 		restoreProgramStatus(terminal, context, signal)

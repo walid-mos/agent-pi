@@ -3,6 +3,7 @@ import { showHumanDialog } from '#lib/ui/human-dialog.ts'
 import { runQuestionnaire } from './questionnaire-component.ts'
 
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
+import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type { QuestionnaireCaptures } from './questionnaire-captures.ts'
 import type {
 	AskResult,
@@ -17,12 +18,14 @@ export function showQuestionnaire(
 		questions: ReturnType<typeof normalizeQuestions>
 		resumeState: QuestionnaireInitialState | undefined
 		captures: QuestionnaireCaptures
+		completion?: DialogCompletion<AskResult> | undefined
 	},
 ): Promise<AskResult> {
 	return runQuestionnaire(
 		factory =>
 			showHumanDialog<AskResult>(context, signal, {
 				build: factory,
+				completion: dialog.completion,
 				cancelled: () => ({
 					questions: dialog.questions,
 					answers: [],

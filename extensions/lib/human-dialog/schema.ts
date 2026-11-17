@@ -1,0 +1,141 @@
+import { Type } from 'typebox'
+
+import type { Static } from 'typebox'
+
+const Text = Type.String({ minLength: 1 })
+export const BrokerAnswerSchema = Type.Object(
+	{
+		id: Text,
+		labels: Type.Array(Text),
+		text: Type.String(),
+	},
+	{ additionalProperties: false },
+)
+const ClickSchema = Type.Object(
+	{
+		question: Text,
+		userId: Type.String({ pattern: '^\\d{17,20}$' }),
+		guildId: Type.String({ pattern: '^\\d{17,20}$' }),
+		messageUrl: Type.String({
+			pattern:
+				'^https://discord\\.com/channels/\\d{17,20}/\\d{17,20}/\\d{17,20}$',
+		}),
+		at: Text,
+	},
+	{ additionalProperties: false },
+)
+export const BrokerResultSchema = Type.Union([
+	Type.Object(
+		{
+			status: Type.Literal('answered'),
+			origin: Type.Union([
+				Type.Literal('terminal'),
+				Type.Literal('discord'),
+			]),
+			answers: Type.Array(BrokerAnswerSchema),
+			dialog: Text,
+			request: Type.Optional(Text),
+			digest: Text,
+			scope: Type.Optional(Text),
+			at: Type.Number(),
+			evidence: Type.Optional(
+				Type.Object(
+					{ clicks: Type.Array(ClickSchema) },
+					{ additionalProperties: false },
+				),
+			),
+			messageId: Type.Optional(Text),
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			status: Type.Union([
+				Type.Literal('cancelled'),
+				Type.Literal('paused'),
+				Type.Literal('expired'),
+			]),
+			origin: Type.Union([
+				Type.Literal('terminal'),
+				Type.Literal('page'),
+			]),
+			at: Type.Number(),
+		},
+		{ additionalProperties: false },
+	),
+	Type.Object(
+		{
+			status: Type.Literal('stored'),
+			origin: Type.Union([
+				Type.Literal('terminal'),
+				Type.Literal('page'),
+			]),
+			at: Type.Number(),
+			dialog: Text,
+			request: Type.Optional(Text),
+			target: Type.Optional(
+				Type.Object(
+					{ destination: Type.Literal('browser'), origin: Text },
+					{ additionalProperties: false },
+				),
+			),
+			handoff: Type.Optional(Type.String({ pattern: '^[a-f0-9]{32}$' })),
+		},
+		{ additionalProperties: false },
+	),
+])
+
+export const BrokerReceiptSchema = Type.Object({
+	id: Text,
+	kind: Type.Union([Type.Literal('question'), Type.Literal('secret')]),
+	policy: Type.Union([
+		Type.Literal('ordinary'),
+		Type.Literal('push'),
+		Type.Literal('local'),
+	]),
+	result: Type.Optional(BrokerResultSchema),
+	delivery: Type.Optional(Type.Object({ id: Text })),
+	isWriting: Type.Optional(Type.Boolean()),
+})
+
+export type BrokerAnswer = Static<typeof BrokerAnswerSchema>
+export type BrokerResult = Static<typeof BrokerResultSchema>
+export type BrokerReceipt = Static<typeof BrokerReceiptSchema>
+export type BrokerSource = {
+	type: 'worker'
+	worker: string
+	session: string
+	call: string
+}
+export type BrokerQuestion = {
+	id: string
+	prompt: string
+	multiple: boolean
+	options: { label: string; detail: string; recommended: boolean }[]
+}
+export type BrokerBrowserTarget = {
+	destination: 'browser'
+	origin: string
+	socket: string
+	capability: string
+}
+export type BrokerTarget =
+	| BrokerBrowserTarget
+	| {
+			destination: 'infisical'
+			projectId: string
+			environment: string
+			path: string
+			name: string
+			replace: boolean
+	  }
+export type BrokerRequest = { source: BrokerSource } & (
+	| {
+			kind: 'question'
+			policy: 'ordinary' | 'push' | 'local'
+			context: string
+			scope?: string
+			questions: BrokerQuestion[]
+	  }
+	| { kind: 'secret'; purpose: string; target: BrokerTarget }
+)

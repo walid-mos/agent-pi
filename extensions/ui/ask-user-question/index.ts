@@ -7,19 +7,26 @@
 import { Text } from '@earendil-works/pi-tui'
 
 import { contentText } from '#lib/content-text.ts'
+import {
+	configuredBroker,
+	registerBrokerFlags,
+} from '#lib/human-dialog/config.ts'
 import { TranscriptComponent } from '#lib/ui/transcript-component.ts'
 
+import { brokerQuestionnaire } from './broker-questionnaire.ts'
 import { QuestionnaireCaptures } from './questionnaire-captures.ts'
 import { QUESTIONNAIRE_MODE_EVENT } from './questionnaire-events.ts'
-import {
-	normalizeQuestions,
-	parseAskResult,
-} from './questionnaire-normalization.ts'
+import { parseAskResult } from './questionnaire-normalization.ts'
 import {
 	chatFollowUp,
 	formatAnswerLines,
 	questionnaireKey,
 } from './questionnaire-output.ts'
+import {
+	questionnaireBroker,
+	requestedQuestions,
+} from './questionnaire-request.ts'
+import { restoreQuestionnaireDrafts } from './questionnaire-session.ts'
 import {
 	renderCallLines,
 	renderResultLines,
@@ -33,6 +40,7 @@ import type {
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
 import type { Static } from 'typebox'
+import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type { QuestionnaireMode } from './questionnaire-events.ts'
 import type {
 	AskResult,
@@ -50,15 +58,21 @@ interface AskRowState {
 }
 
 const TOOL_DESCRIPTION =
-	'Ask only for a consequential decision that the human must make. Do not ask when context, established conventions, best practice, or a low-risk reversible default can decide; choose the default and continue. Before calling, gather every currently known human-only blocker into one questionnaire instead of asking across successive turns. A task should normally have one questionnaire round; ask later only when new evidence creates a new blocker. Use this tool instead of a plain-text question. Every question needs a short, unique, stable id reused as the answer key. The user can always write their own answer, select an option by number, or select multiple options when multiSelect is true. Mark the best option recommended when you have one. Omit options for a genuinely open-ended question. If the user cancels, choose the most reasonable default and report it. Write each prompt for a busy reader who did not watch the work: first sentence names the concrete problem in product terms, second names what you will do by default and its consequence; no evidence ids, round numbers or process vocabulary. Never ask a decision that a recorded questionnaire receipt or a recorded human message already settles, including an answer that the matter does not matter: record it and continue.'
+	'Ask only for a consequential decision that the human must make. Do not ask when context, established conventions, best practice, or a low-risk reversible default can decide; choose the default and continue. Before calling, gather every currently known human-only blocker into one questionnaire instead of asking across successive turns. A task should normally have one questionnaire round; ask later only when new evidence creates a new blocker. Use this tool instead of a plain-text question. Every question needs a short, unique, stable id reused as the answer key. The user can always write their own answer, select an option by number, or select multiple options when multiSelect is true. Mark the best option recommended when you have one. Omit options for a genuinely open-ended question. If the user cancels, report the cancellation. Cancellation grants no consent; proceed only with work already authorized. Write each prompt for a busy reader who did not watch the work: first sentence names the concrete problem in product terms, second names what you will do by default and its consequence; no evidence ids, round numbers or process vocabulary. Never ask a decision that a recorded questionnaire receipt or a recorded human message already settles, including an answer that the matter does not matter: record it and continue.'
 
 export default function askUserQuestion(pi: ExtensionAPI): void {
+	registerBrokerFlags(pi)
 	const session: AskSession = {
 		resumeStates: new Map(),
 		sendFollowUp: message =>
 			pi.sendUserMessage(message, { deliverAs: 'followUp' }),
 		setMode: mode => pi.events.emit(QUESTIONNAIRE_MODE_EVENT, mode),
 	}
+	pi.on('session_start', (_event, context) => {
+		session.resumeStates = restoreQuestionnaireDrafts(
+			context.sessionManager.getBranch(),
+		)
+	})
 	pi.on('session_shutdown', () => session.resumeStates.clear())
 	pi.registerTool<typeof AskParams, AskResult | undefined, AskRowState>({
 		name: 'ask_user_question',
@@ -68,8 +82,12 @@ export default function askUserQuestion(pi: ExtensionAPI): void {
 		executionMode: 'sequential',
 		renderShell: 'self',
 		// Destructure Pi's callback boundary; no parallel handwritten signature.
-		execute: (...[, params, signal, , context]) =>
-			runAskTool(session, params, context, signal),
+		execute: (...[call, params, signal, , context]) =>
+			runAskTool(session, params, {
+				context,
+				signal,
+				createBroker: configuredBroker(pi, context, call),
+			}),
 		renderCall(args, _theme, context) {
 			return new TranscriptComponent(width =>
 				context.state.answered ? [] : renderCallLines(args, width),
@@ -97,12 +115,19 @@ export default function askUserQuestion(pi: ExtensionAPI): void {
 async function runAskTool(
 	session: AskSession,
 	params: Static<typeof AskParams>,
-	context: ExtensionContext,
-	signal: AbortSignal | undefined,
+	{
+		context,
+		signal,
+		createBroker,
+	}: {
+		context: ExtensionContext
+		signal: AbortSignal | undefined
+		createBroker: ReturnType<typeof configuredBroker>
+	},
 ): Promise<AgentToolResult<AskResult>> {
 	if (context.mode !== 'tui')
 		throw new Error('ask_user_question requires interactive TUI mode')
-	const questions = normalizeQuestions(params.questions)
+	const questions = requestedQuestions(params)
 	session.setMode('answering')
 	const key = questionnaireKey(questions)
 	const captures = new QuestionnaireCaptures(context.cwd)
@@ -110,21 +135,20 @@ async function runAskTool(
 		const resumeState = session.resumeStates.get(key)
 		if (resumeState?.captures?.length)
 			captures.restore(resumeState.captures)
-		const outcome = await showQuestionnaire(context, signal, {
-			questions,
-			resumeState,
-			captures,
-		})
-		if (outcome.chat) {
-			session.resumeStates.set(key, outcome.chat.initialState)
-			session.setMode('discussing')
-			session.sendFollowUp(chatFollowUp(outcome.chat.question))
-			return {
-				content: [{ type: 'text', text: 'Chat paused' }],
-				details: outcome,
-				terminate: true,
-			}
-		}
+		const show = (
+			completion?: DialogCompletion<AskResult>,
+		): Promise<AskResult> =>
+			showQuestionnaire(context, signal, {
+				questions,
+				resumeState,
+				captures,
+				completion,
+			})
+		const broker = questionnaireBroker(params, questions, createBroker)
+		const outcome = broker
+			? await brokerQuestionnaire(broker, questions, show, signal)
+			: await show()
+		if (outcome.chat) return pausedResult(session, key, outcome)
 		session.resumeStates.delete(key)
 		return completedResult(questions, outcome, captures)
 	} finally {
@@ -132,8 +156,25 @@ async function runAskTool(
 	}
 }
 
+function pausedResult(
+	session: AskSession,
+	key: string,
+	outcome: AskResult,
+): AgentToolResult<AskResult> {
+	if (!outcome.chat)
+		throw new Error('Questionnaire pause requires its draft state.')
+	session.resumeStates.set(key, outcome.chat.initialState)
+	session.setMode('discussing')
+	session.sendFollowUp(chatFollowUp(outcome.chat.question))
+	return {
+		content: [{ type: 'text', text: 'Chat paused' }],
+		details: outcome,
+		terminate: true,
+	}
+}
+
 function completedResult(
-	questions: ReturnType<typeof normalizeQuestions>,
+	questions: AskResult['questions'],
 	outcome: AskResult,
 	captures: QuestionnaireCaptures,
 ): AgentToolResult<AskResult> {
@@ -170,7 +211,7 @@ function resultDocuments(
 
 /** The result text: the answers when submitted, a cancel note otherwise. */
 function resultText(
-	questions: ReturnType<typeof normalizeQuestions>,
+	questions: AskResult['questions'],
 	outcome: AskResult,
 	documents: string | undefined,
 ): string {

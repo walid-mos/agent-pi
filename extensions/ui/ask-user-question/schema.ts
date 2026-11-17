@@ -8,6 +8,7 @@
 import { Type } from 'typebox'
 
 import { CaptureRecordSchema } from '#lib/attachments/capture-record.ts'
+import { BrokerReceiptSchema } from '#lib/human-dialog/schema.ts'
 
 // ── LLM tool input (validated by pi before the tool runs) ──────────────
 
@@ -66,6 +67,32 @@ const RawQuestionSchema = Type.Object({
 })
 
 export const AskParams = Type.Object({
+	policy: Type.Optional(
+		Type.Union(
+			[
+				Type.Literal('ordinary'),
+				Type.Literal('push'),
+				Type.Literal('local'),
+			],
+			{
+				description:
+					'Use push only for an explicit one-push approval, with exact scope. Ordinary is the default. Local stays in the terminal.',
+			},
+		),
+	),
+	scope: Type.Optional(
+		Type.String({
+			minLength: 1,
+			description:
+				'Required for push: exact branch, remote and full commit IDs covered by this one push.',
+		}),
+	),
+	context: Type.Optional(
+		Type.String({
+			description:
+				'Context shown beside the questions on both terminal and Discord.',
+		}),
+	),
 	questions: Type.Array(RawQuestionSchema, {
 		description:
 			'Every currently known human-only blocker, asked together. Prefer one question; five is the hard maximum.',
@@ -138,6 +165,7 @@ export const ChatRequestSchema = Type.Object({
 })
 
 export const AskResultSchema = Type.Object({
+	broker: Type.Optional(BrokerReceiptSchema),
 	questions: Type.Array(QuestionSchema),
 	answers: Type.Array(AnswerSchema),
 	cancelled: Type.Boolean({ default: false }),

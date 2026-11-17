@@ -12,6 +12,7 @@ import { pushWrapped } from '#lib/ui/terminal-text.ts'
 
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import type { Component, Focusable, TUI } from '@earendil-works/pi-tui'
+import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type { DialogComponent } from '#lib/ui/human-dialog.ts'
 
 const MAX_SECRET_LENGTH = 4096
@@ -126,8 +127,10 @@ export function showSecretDialog(
 	context: ExtensionContext,
 	signal: AbortSignal | undefined,
 	prompt: SecretPrompt,
+	completion?: DialogCompletion<string | undefined>,
 ): Promise<string | undefined> {
 	return showHumanDialog<string | undefined>(context, signal, {
+		completion,
 		build: (tui, _theme, _keybindings, done) =>
 			new SecretDialog(tui, prompt, done),
 		cancelled: () => undefined,
