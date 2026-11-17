@@ -73,7 +73,7 @@ The question and secret tools support explicit pot opt-in, shared terminal/Disco
 
 ## Source audit
 
-`fallow-plugin-pi.json` registers the Pi extension entrypoints, their required `Component.invalidate` hook, and the setup command as developer tooling. It also registers `bin/lib/pi-token.mjs`, whose callers are extensionless Node executables that Fallow does not parse. `.fallowrc.json` identifies the one viewer CSS URL filled by Python `str.format` at request time.
+`fallow-plugin-pi.json` registers the Pi extension entrypoints, their required `Component.invalidate` hook, and the setup command as developer tooling. It also registers `bin/lib/pi-token.mjs`, whose callers are extensionless Node executables that Fallow does not parse. `.fallowrc.json` identifies the viewer CSS URL filled by Python `str.format` at request time and the HTML report stylesheets loaded through the skill's template manifest.
 
 ## Licenses
 
