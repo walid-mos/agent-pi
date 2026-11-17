@@ -3,6 +3,7 @@
  * own assistant renderer and ui/renderers apply it. thread-list.ts reads the titles
  * from hc off the render path; title-highlight.ts styles prose and skips code.
  * Standalone: `pi --extension <this file>` is enough. */
+import { ownTerminal } from '#lib/hc-relay.ts'
 import { uiTheme } from '#lib/ui/design-system/theme.ts'
 
 import { readThreadTitles } from './thread-list.ts'
@@ -43,7 +44,7 @@ export default function threadTitles(pi: ExtensionAPI): void {
 			: markdown,
 	)
 	pi.on('session_start', async (_event, context) => {
-		if (!context.hasUI || !process.env.HC_TERMINAL_ID) return
+		if (!context.hasUI || !ownTerminal()) return
 		stop()
 		timer = setInterval(() => void refresh(), REFRESH_INTERVAL_MS)
 		timer.unref()

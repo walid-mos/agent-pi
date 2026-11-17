@@ -38,7 +38,7 @@ export type PublishTitle = (title: string) => Promise<void>
 
 function normalized(text: string): string {
 	const typed = typedPromptText(text).trim()
-	const relayed = readRelay(typed)?.text ?? typed
+	const relayed = readRelay(typed) ?? typed
 	return relayed.replace(/\s+/gu, ' ').trim()
 }
 
