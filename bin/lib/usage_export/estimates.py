@@ -16,13 +16,13 @@ SIBLINGS = "(SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.es
 PRICED = "json_extract(e.event, '$.cost.estimate_usd') IS NOT NULL"
 
 
-OFFSETLESS = re.compile(r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,9})?", re.ASCII)
+OFFSETLESS = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?", re.ASCII)
 
 
 def csv_instant(value):
     if not isinstance(value, str):
         return None
-    candidate = value.strip()
+    candidate = value.strip().replace(" ", "T", 1)
     try:
         return timestamp(candidate)
     except ValueError:
@@ -30,7 +30,7 @@ def csv_instant(value):
     if not OFFSETLESS.fullmatch(candidate):
         return None
     try:
-        return timestamp(candidate.replace(" ", "T") + "Z")
+        return timestamp(candidate + "Z")
     except ValueError:
         return None
 
