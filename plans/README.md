@@ -15,6 +15,7 @@ plans/
 ├── README.md                     # these conventions (read before touching anything here)
 ├── INDEX.md                      # the discovery surface — a plan without a row does not exist
 ├── templates/plan.md             # start every new plan from here, never freehand
+├── templates/north-star.md       # a North Star starts here instead (rule 1)
 ├── active/<project-slug>/<plan-name>.md   # living plans, one subdir per project
 └── done/<year>/<plan-name>.md    # closed plans, stored by year, dirs moved whole
 ```
@@ -22,6 +23,8 @@ plans/
 ## Rules
 
 1. Create from `templates/plan.md`; keep the front matter (id/title/project/status/created/updated) exact.
+   A North Star, a long-term outcome that later choices are tested against, starts from
+   `templates/north-star.md` instead: load the `north-star` skill, which owns its workflow.
 2. Identity = `<project-slug>/<plan-name>` (equals the front-matter id). Never rename an indexed plan.
 3. English; imperative; self-contained — a reader with no chat history must understand it.
 4. Format is prescriptive in the template (**telegraphic** — grammar sacrificed for concision;
