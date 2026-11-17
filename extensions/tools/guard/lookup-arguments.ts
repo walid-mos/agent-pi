@@ -12,6 +12,7 @@ export const SED_RANGE = /^(\d+)(?:,(\d+|\$))?p$/
 const DEFAULT_HEAD_LINES = 10
 const HEAD_FLAG_WORDS = 2
 const MAX_GREP_OPERANDS = 2
+const SIMPLE_FIND_PATTERN = /^[a-zA-Z0-9_.*-]+$/
 const LS_FLAGS = /^-[a1]+$/
 const GREP_FLAGS = /^-[EFinr]+$/
 const GREP_INCLUDE = /^--include=(.+)$/
@@ -134,9 +135,19 @@ function grepArguments(
 	}
 }
 
-/** The find tool matches case-insensitively only when the pattern has no uppercase letter (fd smart case). */
-function findIgnoresCase(pattern: string): boolean {
-	return pattern === pattern.toLowerCase()
+function isExactFindPattern(
+	predicate: string | undefined,
+	pattern: string,
+): boolean {
+	if (!SIMPLE_FIND_PATTERN.test(pattern) || pattern.includes('**'))
+		return false
+	// fd smart case ignores case unless the glob contains an uppercase letter.
+	const hasUppercase = pattern !== pattern.toLowerCase()
+	if (predicate === '-iname') return !hasUppercase
+	return (
+		predicate === '-name' &&
+		(hasUppercase || pattern === pattern.toUpperCase())
+	)
 }
 
 function findArguments(
@@ -147,8 +158,7 @@ function findArguments(
 	const [root, predicate, pattern, ...rest] = args
 	if (!root || root.startsWith('-') || !pattern || rest.length)
 		return undefined
-	if (predicate === '-iname' && !findIgnoresCase(pattern)) return undefined
-	if (predicate !== '-name' && predicate !== '-iname') return undefined
+	if (!isExactFindPattern(predicate, pattern)) return undefined
 	return { pattern: `**/${pattern}`, path: at(root), ...limitOf(headLines) }
 }
 
