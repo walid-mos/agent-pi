@@ -3,7 +3,7 @@ import json
 import re
 
 from .normalize import CATEGORIES
-from .schema import encode
+from .schema import LABEL_MAX_LENGTH, encode
 from .storage import load_metadata, read_json, rewrite_event, save_metadata
 
 MAX_CONFIG_BYTES = 1024 * 1024
@@ -31,7 +31,7 @@ def catalog_labels(path):
 
 
 def is_public_label(value):
-    return isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,119}", value) is not None
+    return isinstance(value, str) and re.fullmatch(rf"[a-zA-Z0-9][a-zA-Z0-9._:/+-]{{0,{LABEL_MAX_LENGTH - 1}}}", value) is not None
 
 
 def bind(database, run):
