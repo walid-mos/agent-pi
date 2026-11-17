@@ -4,7 +4,6 @@
  * is the mount point; no other routing rule exists.
  */
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import {
 	access,
 	mkdir,
@@ -46,16 +45,12 @@ export interface Runtime {
 	/** Path as the executing machine sees it. */
 	toTarget(path: string): string
 	readFile(path: string): Promise<Buffer>
-	readFileSync(path: string): Buffer
 	writeFile(path: string, content: string | Buffer): Promise<void>
 	mkdir(path: string): Promise<void>
 	access(path: string): Promise<void>
 	exists(path: string): Promise<boolean>
-	existsSync(path: string): boolean
 	stat(path: string): Promise<RuntimeStat>
-	statSync(path: string): RuntimeStat
 	readdir(path: string): Promise<string[]>
-	readdirSync(path: string): string[]
 	listDirectory(path: string): Promise<DirectoryEntry[]>
 	/** Run a shell command in `cwd`, capturing its output. */
 	run(command: string, cwd: string): Promise<CommandOutput>
@@ -102,18 +97,14 @@ const LOCAL: Runtime = {
 	isRemote: false,
 	toTarget: path => path,
 	readFile: path => readFile(path),
-	readFileSync: path => readFileSync(path),
 	writeFile: (path, content) => writeFile(path, content),
 	mkdir: async path => {
 		await mkdir(path, { recursive: true })
 	},
 	access: path => access(path),
 	exists: isAccessible,
-	existsSync: path => existsSync(path),
 	stat: async path => fromStats(await stat(path)),
-	statSync: path => fromStats(statSync(path)),
 	readdir: path => readdir(path),
-	readdirSync: path => readdirSync(path),
 	listDirectory: async path =>
 		(await readdir(path, { withFileTypes: true })).map(entry => ({
 			name: entry.name,

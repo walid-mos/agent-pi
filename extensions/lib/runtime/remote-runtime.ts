@@ -2,7 +2,7 @@
 import { quote } from '#lib/shell-quote.ts'
 
 import { isWithin, targetFor, targetSync } from './anchor.ts'
-import { capture, captureSync, exec } from './remote.ts'
+import { capture, exec } from './remote.ts'
 
 import type { Anchor, WorkspaceTarget } from './anchor.ts'
 import type { CaptureResult, ExecOptions } from './remote.ts'
@@ -52,10 +52,6 @@ export class RemoteRuntime implements Runtime {
 		return stdoutOf(path, await this.onPath(path, readScript))
 	}
 
-	readFileSync(path: string): Buffer {
-		return stdoutOf(path, this.onPathSync(path, readScript))
-	}
-
 	async writeFile(path: string, content: string | Buffer): Promise<void> {
 		stdoutOf(path, await this.onPath(path, writeScript, content))
 	}
@@ -73,24 +69,12 @@ export class RemoteRuntime implements Runtime {
 		return probe.exitCode === 0
 	}
 
-	existsSync(path: string): boolean {
-		return this.onPathSync(path, existsScript).exitCode === 0
-	}
-
 	async stat(path: string): Promise<RuntimeStat> {
 		return parseStat(stdoutOf(path, await this.onPath(path, statScript)))
 	}
 
-	statSync(path: string): RuntimeStat {
-		return parseStat(stdoutOf(path, this.onPathSync(path, statScript)))
-	}
-
 	async readdir(path: string): Promise<string[]> {
 		return parseList(stdoutOf(path, await this.onPath(path, listScript)))
-	}
-
-	readdirSync(path: string): string[] {
-		return parseList(stdoutOf(path, this.onPathSync(path, listScript)))
 	}
 
 	async listDirectory(path: string): Promise<DirectoryEntry[]> {
@@ -132,11 +116,6 @@ export class RemoteRuntime implements Runtime {
 	): Promise<CaptureResult> {
 		const target = await targetFor(this.anchor)
 		return capture(target.host, script(quote(mapPath(target, path))), input)
-	}
-
-	private onPathSync(path: string, script: PathScript): CaptureResult {
-		const target = targetSync(this.anchor)
-		return captureSync(target.host, script(quote(mapPath(target, path))))
 	}
 }
 
