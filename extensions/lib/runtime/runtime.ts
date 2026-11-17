@@ -99,6 +99,8 @@ async function isAccessible(path: string): Promise<boolean> {
 	}
 }
 
+const LOCAL_SHELL = createLocalBashOperations()
+
 const LOCAL: Runtime = {
 	isRemote: false,
 	toTarget: path => path,
@@ -119,8 +121,7 @@ const LOCAL: Runtime = {
 			isSymbolicLink: entry.isSymbolicLink(),
 		})),
 	run: (command, cwd) => runLocal(command, cwd),
-	exec: (command, cwd, options) =>
-		createLocalBashOperations().exec(command, cwd, options),
+	exec: (command, cwd, options) => LOCAL_SHELL.exec(command, cwd, options),
 }
 
 function runLocal(command: string, cwd: string): Promise<CommandOutput> {
