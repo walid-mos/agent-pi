@@ -36,7 +36,7 @@ Identifying values become keyed opaque references. Raw sessions, request/respons
 Categorical names default to unavailable, with stable opaque references for grouping. To expose public model/provider/client-program names, supply a locally reviewed JSON catalog using `--catalog`:
 
 ```json
-{"req":["group/router"],"served":["gpt-6.1-sol"],"provider":["codex"],"agent":["pi"]}
+{"req":["group/router"],"served":["actual-model-id"],"provider":["codex"],"agent":["pi"]}
 ```
 
 These lists authorize exact labels only. Include public model names and provider names, never client labels, titles, paths, email addresses, or credentials. Other values remain opaque even when another value in that field is allowed. The catalog stays local. Its configuration is bound to private state so repeated exports cannot silently relabel history.
