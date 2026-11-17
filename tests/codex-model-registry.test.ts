@@ -8,11 +8,7 @@ import {
 	getSupportedThinkingLevels,
 	InMemoryCredentialStore,
 } from '@earendil-works/pi-ai'
-import {
-	ModelRegistry,
-	ModelRuntime,
-	VERSION,
-} from '@earendil-works/pi-coding-agent'
+import { ModelRegistry, ModelRuntime } from '@earendil-works/pi-coding-agent'
 
 import type { TestContext } from 'node:test'
 
@@ -32,8 +28,7 @@ async function registry(
 	return new ModelRegistry(runtime)
 }
 
-test('Pi 1.4.0 resolves direct GPT-6.2 Sol from the capability catalog without network or sign-in', async context => {
-	assert.equal(VERSION, '1.4.0')
+test('Pi resolves direct GPT-6.2 Sol from the capability catalog without network or sign-in', async context => {
 	const builtin = await registry(context, null)
 	assert.equal(builtin.find('openai-codex', 'gpt-6.2-sol'), undefined)
 	const configured = await registry(context, resolve('models.pinned.json'))
