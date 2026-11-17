@@ -6,6 +6,7 @@ VERSION = 1
 DIGEST = {"type": "string", "pattern": "^[0-9a-f]{64}$"}
 COUNT = {"type": "integer", "minimum": 0}
 DAY = {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
+LABEL_MAX_LENGTH = 120
 TIME = {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z$"}
 
 
@@ -25,7 +26,7 @@ def nullable(specification):
 NUMBER = nullable({"type": "number", "minimum": 0})
 
 REFERENCE = nullable(DIGEST)
-CATEGORY = object_schema(ref=REFERENCE, label=nullable({"type": "string", "maxLength": 120}))
+CATEGORY = object_schema(ref=REFERENCE, label=nullable({"type": "string", "maxLength": LABEL_MAX_LENGTH}))
 TOKENS = object_schema(**{kind: nullable(COUNT) for kind in
                          ("input", "output", "cache_read", "cache_write", "cache_write_1h", "reasoning")})
 COST = object_schema(estimate_usd=NUMBER, billed_usd={"type": "null"}, currency=choice("USD"),
@@ -96,7 +97,8 @@ def validate_constraints(value, specification):
         for item in value:
             validate(item, specification["items"])
     if isinstance(value, str):
-        if len(value) > specification.get("maxLength", 1000):
+        limit = specification.get("maxLength")
+        if limit is not None and len(value) > limit:
             raise ValueError("schema violation")
         if "pattern" in specification and not re.fullmatch(specification["pattern"], value, re.ASCII):
             raise ValueError("schema violation")

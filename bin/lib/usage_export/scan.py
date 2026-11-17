@@ -7,7 +7,7 @@ from datetime import timedelta
 from .estimates import estimate_key
 from .normalize import instant, normalize
 from .schema import EVENT, encode, validate
-from .storage import MAX_LINE_BYTES
+from .storage import MAX_LINE_BYTES, load_metadata, mark_dirty, save_metadata
 
 ANCHOR_BYTES = 4096
 
@@ -17,11 +17,6 @@ class Scan:
     summary: dict
     read_bytes: int
     last_scan_at: str
-
-
-def load_checkpoint(database):
-    saved = database.execute("SELECT value FROM metadata WHERE key='checkpoint'").fetchone()
-    return json.loads(saved[0]) if saved else None
 
 
 def anchor(stream, offset):
@@ -54,7 +49,7 @@ def record_event(row, identity, database, run):
         (identifier, day, event["ts_utc"], event["kind"], event["response_ref"], event["request_ref"],
          estimate_key(row, identity), int(is_late), encode(event))).rowcount
     if inserted:
-        database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
+        mark_dirty(database, day)
         database.execute("""INSERT OR IGNORE INTO dirty
             SELECT day FROM events WHERE response=? OR request=?""",
             (event["response_ref"], event["request_ref"]))
@@ -92,7 +87,7 @@ def consume(stream, snapshot_size, identity, database, run, counters):
 
 
 def scan_ledger(database, identity, run):
-    checkpoint = load_checkpoint(database)
+    checkpoint = load_metadata(database, "checkpoint")
     with run.ledger.open("rb") as stream:
         snapshot = os.fstat(stream.fileno())
         offset = resume_offset(stream, snapshot, checkpoint, run)
@@ -109,6 +104,6 @@ def scan_ledger(database, identity, run):
         saved = {"device": snapshot.st_dev, "inode": snapshot.st_ino, "offset": end,
                  "anchor": boundary, "counters": counters,
                  "last_scan_at": checkpoint["last_scan_at"] if is_unchanged else run.now}
-        database.execute("INSERT OR REPLACE INTO metadata VALUES ('checkpoint', ?)", (encode(saved),))
+        save_metadata(database, "checkpoint", saved)
     return Scan(summary={"ledger_bytes": end, **counters, "deferred_tail_bytes": snapshot.st_size - end},
                 read_bytes=snapshot.st_size - offset, last_scan_at=saved["last_scan_at"])

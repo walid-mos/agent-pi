@@ -14,6 +14,7 @@ from .schema import encode
 PRIVATE_DIRECTORY = 0o700
 PRIVATE_FILE = 0o600
 MAX_LINE_BYTES = 1024 * 1024
+BUSY_TIMEOUT_SECONDS = 30
 
 
 def private_directory(path):
@@ -52,14 +53,18 @@ def initialize(database):
     """)
 
 
+def database_path(path):
+    return path / "usage.sqlite"
+
+
 @contextmanager
 def state_database(path):
     private_directory(path)
     with open_private(path / "lock") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with open_private(path / "usage.sqlite"):
+        with open_private(database_path(path)):
             pass
-        database = sqlite3.connect(path / "usage.sqlite")
+        database = sqlite3.connect(database_path(path))
         try:
             initialize(database)
             with database:
@@ -68,13 +73,39 @@ def state_database(path):
             database.close()
 
 
+@contextmanager
+def read_only_database(path):
+    database = sqlite3.connect(database_path(path).as_uri() + "?mode=ro", uri=True,
+                               timeout=BUSY_TIMEOUT_SECONDS)
+    try:
+        yield database
+    finally:
+        database.close()
+
+
+def load_metadata(database, key):
+    row = database.execute("SELECT value FROM metadata WHERE key=?", (key,)).fetchone()
+    return json.loads(row[0]) if row else None
+
+
+def save_metadata(database, key, value):
+    database.execute("INSERT OR REPLACE INTO metadata VALUES (?, ?)", (key, encode(value)))
+
+
+def mark_dirty(database, day):
+    database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
+
+
+def rewrite_event(database, identifier, day, event):
+    database.execute("UPDATE events SET event=? WHERE id=?", (encode(event), identifier))
+    mark_dirty(database, day)
+
+
 def identity(database):
-    row = database.execute("SELECT value FROM metadata WHERE key='identity'").fetchone()
-    if row:
-        result = json.loads(row[0])
-    else:
+    result = load_metadata(database, "identity")
+    if result is None:
         result = {key: secrets.token_hex(32) for key in ("host_uuid", "source_ref", "salt")}
-        database.execute("INSERT INTO metadata VALUES ('identity', ?)", (encode(result),))
+        save_metadata(database, "identity", result)
         database.commit()
     return {**result, "salt": bytes.fromhex(result["salt"])}
 

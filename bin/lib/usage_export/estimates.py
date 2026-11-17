@@ -5,26 +5,24 @@ import math
 import re
 
 from .normalize import MAX_NUMBER, TOKEN_FIELDS, numeric, opaque, text, timestamp, unknown_cost
-from .schema import encode
-from .storage import MAX_LINE_BYTES
+from .storage import MAX_LINE_BYTES, rewrite_event
 
 CSV_FIELDS = {"t": "time", "req": "requested_model", "provider": "provider", "served": "served_model",
-              "in": "input_tokens", "out": "output_tokens", "cache_read": "cache_read_tokens",
-              "cache_write": "cache_write_tokens", "cache_write_1h": "cache_write_1h_tokens",
-              "reasoning": "reasoning_tokens", "ms": "duration_ms", "status": "status",
-              "response_id": "response_id", "rid": "request_id", "kind": "kind"}
+              **{field: f"{kind}_tokens" for kind, field in TOKEN_FIELDS.items()},
+              "ms": "duration_ms", "status": "status", "response_id": "response_id", "rid": "request_id",
+              "kind": "kind"}
 NUMERIC_FIELDS = (*TOKEN_FIELDS.values(), "ms", "status")
 SIBLINGS = "(SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)"
 PRICED = "json_extract(e.event, '$.cost.estimate_usd') IS NOT NULL"
 
 
-OFFSETLESS = re.compile(r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,9})?", re.ASCII)
+OFFSETLESS = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?", re.ASCII)
 
 
 def csv_instant(value):
     if not isinstance(value, str):
         return None
-    candidate = value.strip()
+    candidate = value.strip().replace(" ", "T", 1)
     try:
         return timestamp(candidate)
     except ValueError:
@@ -32,7 +30,7 @@ def csv_instant(value):
     if not OFFSETLESS.fullmatch(candidate):
         return None
     try:
-        return timestamp(candidate.replace(" ", "T") + "Z")
+        return timestamp(candidate + "Z")
     except ValueError:
         return None
 
@@ -57,20 +55,28 @@ def csv_row(raw):
     return result
 
 
-def bounded_lines(stream, digest):
-    while line := stream.readline(MAX_LINE_BYTES + 1):
-        if len(line) > MAX_LINE_BYTES:
-            raise ValueError("oversize CSV row")
-        digest.update(line)
-        yield line.decode("utf-8-sig")
+def csv_rows(stream, digest=None):
+    def lines():
+        while line := stream.readline(MAX_LINE_BYTES + 1):
+            if len(line) > MAX_LINE_BYTES:
+                raise ValueError("oversize CSV row")
+            if digest:
+                digest.update(line)
+            yield line.decode("utf-8-sig")
+
+    return csv.DictReader(lines())
+
+
+def has_estimate_columns(fieldnames):
+    return set(CSV_FIELDS.values()).union({"cost_usd"}) <= set(fieldnames or [])
 
 
 def load_estimates(database, host, run):
     database.execute("DELETE FROM estimates")
     digest = hashlib.sha256()
     with run.estimates.open("rb") as stream:
-        reader = csv.DictReader(bounded_lines(stream, digest))
-        if not set(CSV_FIELDS.values()).union({"cost_usd"}) <= set(reader.fieldnames or []):
+        reader = csv_rows(stream, digest)
+        if not has_estimate_columns(reader.fieldnames):
             raise ValueError("unsupported CSV header")
         for raw in reader:
             insert_estimate(database, host, raw)
@@ -94,15 +100,9 @@ def insert_estimate(database, host, raw):
         ON CONFLICT(key) DO UPDATE SET matches=matches+1""", (key, amount))
 
 
-def set_cost(database, identifier, day, event, cost):
-    event["cost"] = cost
-    database.execute("UPDATE events SET event=? WHERE id=?", (encode(event), identifier))
-    database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
-
-
 def revoke(database, query):
     for identifier, day, encoded in database.execute(query).fetchall():
-        set_cost(database, identifier, day, json.loads(encoded), unknown_cost())
+        rewrite_event(database, identifier, day, {**json.loads(encoded), "cost": unknown_cost()})
 
 
 def revoke_ambiguous(database):
@@ -126,4 +126,5 @@ def apply_estimates(database, host, run):
         AND NOT {PRICED}""").fetchall()
     for identifier, day, encoded, amount in candidates:
         event = json.loads(encoded)
-        set_cost(database, identifier, day, event, {**event["cost"], **provenance, "estimate_usd": amount})
+        cost = {**event["cost"], **provenance, "estimate_usd": amount}
+        rewrite_event(database, identifier, day, {**event, "cost": cost})
