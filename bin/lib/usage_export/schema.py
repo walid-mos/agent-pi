@@ -97,7 +97,7 @@ def validate_constraints(value, specification):
         for item in value:
             validate(item, specification["items"])
     if isinstance(value, str):
-        if len(value) > specification.get("maxLength", 1000):
+        if len(value) > specification.get("maxLength", len(value)):
             raise ValueError("schema violation")
         if "pattern" in specification and not re.fullmatch(specification["pattern"], value, re.ASCII):
             raise ValueError("schema violation")
