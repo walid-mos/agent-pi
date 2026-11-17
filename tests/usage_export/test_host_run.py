@@ -142,6 +142,22 @@ class HostRunTests(HostCase):
         self.install_magpie([*rows, self.row(t="2026-11-17T23:59:00Z", response_id="in-flight")])
         self.assertEqual(self.receipt(now="2026-11-18T00:30:00Z")["reconcile"], [])
 
+    def test_the_snapshot_first_day_is_skipped_because_it_can_be_cut_off(self):
+        early = self.row(t="2026-11-15T09:00:00Z", response_id="early")
+        work = self.row(t="2026-11-17T10:00:00Z", response_id="work")
+        self.append(early, work, {**work, "response_id": "second"})
+        self.install_magpie([work])
+        self.assertEqual(self.receipt()["reconcile"], [])
+
+    def test_a_day_after_the_snapshot_first_day_is_compared(self):
+        early = self.row(t="2026-11-15T09:00:00Z", response_id="early")
+        cut = self.row(t="2026-11-16T09:00:00Z", response_id="cut")
+        work = self.row(t="2026-11-17T10:00:00Z", response_id="work")
+        self.append(early, cut, work)
+        self.install_magpie([cut, work])
+        entry, = self.receipt()["reconcile"]
+        self.assertEqual((entry["day"], entry["matches"]), ("2026-11-17", True))
+
     def test_the_receipt_holds_no_raw_value_path_or_unlisted_label(self):
         row = self.row(t="2026-11-17T10:00:00Z", req=CANARY, model=CANARY, served=CANARY, provider=CANARY,
                        agent=CANARY, session=CANARY, providerAccount=CANARY, response_id=CANARY)
