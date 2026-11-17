@@ -9,13 +9,8 @@ import type { MagpieGroup } from './magpie-groups.ts'
 
 export const CODEX_GROUP_PREFIX = 'codex-group/'
 const CODEX_MEMBER_PREFIX = 'codex/'
-const EffortSchema = Type.Union([
-	Type.Literal('low'),
-	Type.Literal('medium'),
-	Type.Literal('high'),
-	Type.Literal('xhigh'),
-	Type.Literal('max'),
-])
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+const EffortSchema = Type.Union(EFFORTS.map(effort => Type.Literal(effort)))
 
 type CodexSelection = {
 	provider: 'openai-codex'
@@ -61,7 +56,7 @@ export function resolveCodexGroup(
 		!Value.Check(EffortSchema, thinkingLevel)
 	)
 		throw new Error(
-			`Magpie configuration ${path}: group ${group} needs a non-Anthropic Codex model with a Pi-supported effort (low, medium, high, xhigh, max).`,
+			`Magpie configuration ${path}: group ${group} needs a non-Anthropic Codex model with a Pi-supported effort (${EFFORTS.join(', ')}).`,
 		)
 	return { provider: 'openai-codex', id, thinkingLevel }
 }
