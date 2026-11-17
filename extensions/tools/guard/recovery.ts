@@ -55,16 +55,18 @@ function nearestLine(lines: readonly string[], probe: string): number {
 }
 
 async function editHint(
+	cwd: string,
 	input: Record<string, unknown>,
 	error: string,
 ): Promise<string | undefined> {
 	const path = typeof input.path === 'string' ? input.path : ''
 	const missing = missingText(input, error)
 	if (!path || !missing) return undefined
-	const runtime = runtimeFor(path)
-	if (!(await runtime.exists(path))) return undefined
-	if ((await runtime.stat(path)).size > MAX_FILE_BYTES) return undefined
-	const lines = (await runtime.readFile(path)).toString('utf8').split('\n')
+	const file = resolve(cwd, path)
+	const runtime = runtimeFor(file)
+	if (!(await runtime.exists(file))) return undefined
+	if ((await runtime.stat(file)).size > MAX_FILE_BYTES) return undefined
+	const lines = (await runtime.readFile(file)).toString('utf8').split('\n')
 	const probes = missing.split('\n').filter(line => line.trim())
 	const [first] = probes
 	if (!first) return undefined
@@ -137,7 +139,7 @@ export function registerLookupRecovery(pi: ExtensionAPI): void {
 		const error = contentText(event.content)
 		let hint: string | undefined
 		if (event.toolName === 'edit' && /could not find/i.test(error))
-			hint = await editHint(event.input, error)
+			hint = await editHint(ctx.cwd, event.input, error)
 		if (event.toolName === 'read' && /ENOENT/.test(error))
 			hint = await readHint(ctx.cwd, event.input)
 		if (!hint) return undefined
