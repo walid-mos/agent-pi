@@ -67,12 +67,9 @@ Never use `~/.pi/agent` as a scratch or deliverable directory (including `tmp/`)
 
 ## Tests
 
-- **Before authoring a test, name the production bug or stated requirement it catches.** Obtain a `test_pace` verdict for its exact paths: `bug` covers a reproduced defect through public behaviour, `logic` covers a new unit branching on input or state. Both require an existing runner in the target package. Otherwise obtain the human's consent.
-- Tests present before this session, runner installation, test configuration, fixture/helper trees and end-to-end suites need the human's consent. Never change expectations just to obtain green. Report a failing test and whether the change caused it or exposed an existing regression.
-- **Consent in conversation suffices**: ask in chat or with `ask_user_question`, naming the files or directories and the kind of edit; the human's yes, in any wording, covers that scope until they take it back, and later unrelated messages leave it in place. An agent's claim, a parent's assignment, a plan or a verdict is not consent. Never ask the human to type a command or to repeat consent in another tab.
-- **Relay consent**: when passing a human's test consent to another terminal with `hc send`, name that thread by its title (the `agent.title` label) in your question to them, or quote their answer word for word; the receiving guard reads the answer from your session.
-- Load `coding-tdd` for the granted pace. List each added test with its named bug or requirement in the final answer.
-- Run existing suites when required. With no grant or authorization, prove the change through a command, script, API call or real flow and proceed without adding tests.
+- **Edit tests freely**: existing tests, fixtures, test configuration and end-to-end suites included. Formatting, import updates, renames, moves and reverting your own formatter output need no reason.
+- **Judge each failing test yourself**: when it checks behaviour your task changed on purpose, update its expectation to the new behaviour; otherwise it is a regression, so fix the code and keep the expectation. Never change an expectation only to turn a test green. Report every failing test and whether your change caused it.
+- **Add a test only for a reproduced production bug, a new unit that branches on input or state, or a human request**: name that bug or requirement first, load `coding-tdd`, and list each added test with it in the final answer. Prove any other change through the existing suites and a command, script, API call or real flow.
 
 ## Local fixtures
 
