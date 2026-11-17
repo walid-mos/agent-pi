@@ -12,7 +12,7 @@ import { Value } from 'typebox/value'
 
 import type { Static } from 'typebox'
 
-/** `provider/modelId` - the model id may itself contain slashes (see `chain.ts`). */
+/** `provider/modelId` or `codex-group/<id>` - the model id may itself contain slashes (see `chain.ts`). */
 const MODEL_REFERENCE_PATTERN = '^[^/:]+/.+$'
 const MIN_EXCLUSION_TTL_MS = 1_000
 const DEFAULT_EXCLUSION_TTL_MS = 300_000
