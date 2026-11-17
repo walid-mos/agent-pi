@@ -78,16 +78,19 @@ function parse(stdout: string): GrepLine[] {
 		const event: unknown = JSON.parse(line)
 		const kind: unknown = Reflect.get(Object(event), 'type')
 		if (kind !== 'match' && kind !== 'context') return []
-		const data: unknown = Reflect.get(Object(event), 'data')
+		const lineRecord: unknown = Reflect.get(Object(event), 'data')
 		const path: unknown = Reflect.get(
-			Object(Reflect.get(Object(data), 'path')),
+			Object(Reflect.get(Object(lineRecord), 'path')),
 			'text',
 		)
 		const text: unknown = Reflect.get(
-			Object(Reflect.get(Object(data), 'lines')),
+			Object(Reflect.get(Object(lineRecord), 'lines')),
 			'text',
 		)
-		const lineNumber: unknown = Reflect.get(Object(data), 'line_number')
+		const lineNumber: unknown = Reflect.get(
+			Object(lineRecord),
+			'line_number',
+		)
 		if (
 			typeof path !== 'string' ||
 			typeof text !== 'string' ||
