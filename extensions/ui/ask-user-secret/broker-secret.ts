@@ -5,110 +5,129 @@ import { describeTarget } from '../../../security/infisical-target.ts'
 import { BrowserSecretOwner } from './browser-owner.ts'
 import { secretSession } from './secret-session.ts'
 
-import type { BrokerDialog } from '#lib/human-dialog/broker.ts'
 import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type { BrokerFactory } from '#lib/human-dialog/config.ts'
-import type { BrokerReceipt, BrokerTarget } from '#lib/human-dialog/schema.ts'
+import type {
+	BrokerReceipt,
+	BrokerResult,
+	BrokerTarget,
+} from '#lib/human-dialog/schema.ts'
 import type { SecretRequest } from './request.ts'
 import type { SecretResult } from './schema.ts'
+
+type ShowSecret = (
+	completion: DialogCompletion<string | undefined>,
+) => Promise<string | undefined>
+type Stored = Extract<BrokerResult, { status: 'stored' }>
+type Settlement = {
+	target: BrokerTarget
+	key: string
+	signal: AbortSignal | undefined
+	stored: (receipt: BrokerReceipt, result: Stored) => SecretResult
+}
 
 export async function brokerSecret(
 	createBroker: BrokerFactory,
 	{ request, purpose }: { request: SecretRequest; purpose: string },
-	show: (
-		completion: DialogCompletion<string | undefined>,
-	) => Promise<string | undefined>,
+	show: ShowSecret,
 	signal: AbortSignal | undefined,
 ): Promise<SecretResult> {
-	const owner =
-		request.destination === 'browser'
-			? await BrowserSecretOwner.open({
-					dialog: dialogId(createBroker),
-					source: createBroker.source,
-					origin: request.origin,
-				})
-			: undefined
-	let broker: BrokerDialog | undefined
-	try {
-		const target = brokerTarget(request, owner)
-		broker = createBroker({ kind: 'secret', purpose, target })
-		const watching = owner
-			? AbortSignal.any([owner.signal, ...(signal ? [signal] : [])])
-			: signal
-		const receipt = await secretSession(
-			broker,
-			request.destination === 'browser' ? 'SECRET' : request.target.name,
+	if (request.destination === 'infisical')
+		return settle(
+			createBroker,
+			purpose,
 			show,
-			watching,
+			vaultSettlement(request, signal),
 		)
-		return secretReceipt(receipt, request, owner)
-	} catch (error) {
-		await broker?.perform('cancel').catch(() => undefined)
-		throw error
+	const owner = await BrowserSecretOwner.open({
+		dialog: dialogId(createBroker),
+		source: createBroker.source,
+		origin: request.origin,
+	})
+	try {
+		return await settle(
+			createBroker,
+			purpose,
+			show,
+			browserSettlement(request.origin, owner, signal),
+		)
 	} finally {
-		await owner?.dispose()
+		await owner.dispose()
 	}
 }
 
-function brokerTarget(
-	request: SecretRequest,
-	owner: BrowserSecretOwner | undefined,
-): BrokerTarget {
-	if (request.destination === 'browser') {
-		if (!owner)
-			throw new Error(
-				'Browser handoff has no waiting owner. Open a new tool call.',
-			)
-		return {
+function vaultSettlement(
+	request: Extract<SecretRequest, { destination: 'infisical' }>,
+	signal: AbortSignal | undefined,
+): Settlement {
+	return {
+		target: {
+			destination: 'infisical',
+			projectId: request.target.workspaceId,
+			environment: request.target.environment,
+			path: request.target.path,
+			name: request.target.name,
+			replace: request.shouldReplace,
+		},
+		key: request.target.name,
+		signal,
+		stored: receipt => ({
+			status: 'stored',
+			target: describeTarget(request.target),
+			operation: 'written',
+			broker: receipt,
+		}),
+	}
+}
+
+function browserSettlement(
+	origin: string,
+	owner: BrowserSecretOwner,
+	signal: AbortSignal | undefined,
+): Settlement {
+	return {
+		target: {
 			destination: 'browser',
-			origin: request.origin,
+			origin,
 			socket: owner.socket,
 			capability: owner.capability,
-		}
-	}
-	return {
-		destination: 'infisical',
-		projectId: request.target.workspaceId,
-		environment: request.target.environment,
-		path: request.target.path,
-		name: request.target.name,
-		replace: request.shouldReplace,
+		},
+		key: 'SECRET',
+		signal: AbortSignal.any([owner.signal, ...(signal ? [signal] : [])]),
+		stored: (receipt, outcome) => {
+			if (!outcome.handoff)
+				throw new Error(
+					'Browser completion has no matching live handoff. Open a new tool call.',
+				)
+			const issued = owner.confirm({
+				dialog: receipt.id,
+				origin,
+				handoff: outcome.handoff,
+			})
+			return { status: 'issued', ...issued, origin, broker: receipt }
+		},
 	}
 }
 
-function secretReceipt(
-	receipt: BrokerReceipt,
-	request: SecretRequest,
-	owner: BrowserSecretOwner | undefined,
-): SecretResult {
-	const { result } = receipt
-	if (result?.status === 'cancelled' || result?.status === 'expired')
-		return { status: 'cancelled', broker: receipt }
-	if (result?.status !== 'stored')
-		throw new Error(
-			'Pots returned an unexpected secret receipt. Check the destination before opening another request.',
-		)
-	if (request.destination === 'browser') {
-		if (!owner || !result.handoff)
+async function settle(
+	createBroker: BrokerFactory,
+	purpose: string,
+	show: ShowSecret,
+	{ target, key, signal, stored }: Settlement,
+): Promise<SecretResult> {
+	const broker = createBroker({ kind: 'secret', purpose, target })
+	try {
+		const receipt = await secretSession(broker, key, show, signal)
+		const { result: outcome } = receipt
+		if (outcome?.status === 'cancelled' || outcome?.status === 'expired')
+			return { status: 'cancelled', broker: receipt }
+		if (outcome?.status !== 'stored')
 			throw new Error(
-				'Browser completion has no matching live handoff. Open a new tool call.',
+				'Pots returned an unexpected secret receipt. Check the destination before opening another request.',
 			)
-		const issued = owner.confirm({
-			dialog: receipt.id,
-			origin: request.origin,
-			handoff: result.handoff,
-		})
-		return {
-			status: 'issued',
-			...issued,
-			origin: request.origin,
-			broker: receipt,
-		}
-	}
-	return {
-		status: 'stored',
-		target: describeTarget(request.target),
-		operation: 'written',
-		broker: receipt,
+		return stored(receipt, outcome)
+	} catch (error) {
+		await broker.perform('cancel').catch(() => undefined)
+		throw error
 	}
 }
