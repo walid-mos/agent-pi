@@ -9,6 +9,56 @@ import type {
 	RenderOption,
 } from './questionnaire-model.ts'
 
+export function customAnswer(question: Question, text: string): Answer {
+	return {
+		kind: 'single',
+		id: question.id,
+		value: text,
+		label: text,
+		wasCustom: true,
+	}
+}
+
+export function optionAnswer(
+	question: Question,
+	option: QuestionOption,
+	index: number,
+): Answer {
+	return {
+		kind: 'single',
+		id: question.id,
+		value: option.value,
+		label: option.label,
+		wasCustom: false,
+		index: index + 1,
+	}
+}
+
+export function multiAnswer(
+	question: Question,
+	picked: readonly Pick<QuestionOption, 'label' | 'value'>[],
+	text: string,
+): MultiAnswer {
+	const labels = picked.map(option => option.label)
+	const pickedValues = picked.map(option => option.value)
+	const values = [...pickedValues]
+	if (text) {
+		labels.push(text)
+		values.push(text)
+	}
+	const recorded: MultiAnswer = {
+		kind: 'multi',
+		id: question.id,
+		value: values.join(','),
+		label: labels.join(', '),
+		wasCustom: !picked.length,
+		labels,
+		optionValues: pickedValues,
+	}
+	if (text) recorded.customText = text
+	return recorded
+}
+
 /** The user-written texts submitted answers carry: labels plus custom texts. */
 export function answerReferenceTexts(answers: readonly Answer[]): string[] {
 	return answers.flatMap(answer => {
@@ -82,13 +132,7 @@ export class QuestionnaireResponses {
 	}
 
 	recordCustomAnswer(question: Question, text: string): void {
-		this.answers.set(question.id, {
-			kind: 'single',
-			id: question.id,
-			value: text,
-			label: text,
-			wasCustom: true,
-		})
+		this.answers.set(question.id, customAnswer(question, text))
 	}
 
 	/**
@@ -113,14 +157,7 @@ export class QuestionnaireResponses {
 		option: QuestionOption,
 		index: number,
 	): void {
-		this.answers.set(question.id, {
-			kind: 'single',
-			id: question.id,
-			value: option.value,
-			label: option.label,
-			wasCustom: false,
-			index: index + 1,
-		})
+		this.answers.set(question.id, optionAnswer(question, option, index))
 	}
 
 	toggleOption(questionId: string, index: number): void {
@@ -137,27 +174,13 @@ export class QuestionnaireResponses {
 		this.saveDraft(question.id, draft)
 		const selection = this.multiSelections.get(question.id) ?? new Set()
 		if (!selection.size && !draft) return false
-		const picked = [...selection].toSorted((a, b) => a - b)
-		const labels = picked.map(index => question.options[index]?.label ?? '')
-		const pickedValues = picked.map(
-			index => question.options[index]?.value ?? '',
-		)
-		const values = [...pickedValues]
-		if (draft) {
-			labels.push(draft)
-			values.push(draft)
-		}
-		const recorded: MultiAnswer = {
-			kind: 'multi',
-			id: question.id,
-			value: values.join(','),
-			label: labels.join(', '),
-			wasCustom: !picked.length,
-			labels,
-			optionValues: pickedValues,
-		}
-		if (draft) recorded.customText = draft
-		this.answers.set(question.id, recorded)
+		const picked = [...selection]
+			.toSorted((a, b) => a - b)
+			.map(index => ({
+				label: question.options[index]?.label ?? '',
+				value: question.options[index]?.value ?? '',
+			}))
+		this.answers.set(question.id, multiAnswer(question, picked, draft))
 		return true
 	}
 

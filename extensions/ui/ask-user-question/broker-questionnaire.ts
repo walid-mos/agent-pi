@@ -1,3 +1,9 @@
+import {
+	customAnswer,
+	multiAnswer,
+	optionAnswer,
+} from './questionnaire-responses.ts'
+
 import type { BrokerDialog } from '#lib/human-dialog/broker.ts'
 import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type {
@@ -149,32 +155,9 @@ function piAnswer(question: Question, answer: BrokerAnswer): Answer {
 		if (!option) throw new Error('Pots returned an unknown option label.')
 		return option
 	})
-	const labels = [...answer.labels, ...(answer.text ? [answer.text] : [])]
-	const values = [
-		...options.map(option => option.value),
-		...(answer.text ? [answer.text] : []),
-	]
-	if (question.multiSelect) {
-		const multi: Answer = {
-			kind: 'multi',
-			id: question.id,
-			label: labels.join(', '),
-			value: values.join(','),
-			wasCustom: !options.length,
-			labels,
-			optionValues: options.map(option => option.value),
-		}
-		if (answer.text) multi.customText = answer.text
-		return multi
-	}
+	if (question.multiSelect) return multiAnswer(question, options, answer.text)
 	const [option] = options
-	const single: Answer = {
-		kind: 'single',
-		id: question.id,
-		label: option?.label ?? answer.text,
-		value: option?.value ?? answer.text,
-		wasCustom: !option,
-	}
-	if (option) single.index = question.options.indexOf(option) + 1
-	return single
+	return option
+		? optionAnswer(question, option, question.options.indexOf(option))
+		: customAnswer(question, answer.text)
 }
