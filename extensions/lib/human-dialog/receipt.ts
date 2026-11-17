@@ -5,6 +5,8 @@ import { Value } from 'typebox/value'
 import { BrokerReceiptSchema } from './schema.ts'
 
 import type {
+	BrokerAnswer,
+	BrokerQuestion,
 	BrokerReceipt,
 	BrokerRequest,
 	BrokerResult,
@@ -86,10 +88,19 @@ function checkResult(
 			)
 		return checkSecretTarget(outcome, request.target, receipt, deliveryId)
 	}
-	if (outcome.status !== 'answered') return
+	if (outcome.status === 'answered')
+		checkQuestionResult(outcome, request, receipt.id, deliveryId)
+}
+
+function checkQuestionResult(
+	outcome: Answered,
+	request: BrokerRequest,
+	dialog: string,
+	deliveryId: string | undefined,
+): void {
 	if (
 		request.kind !== 'question' ||
-		outcome.dialog !== receipt.id ||
+		outcome.dialog !== dialog ||
 		outcome.digest !== questionDigest(request) ||
 		outcome.scope !== request.scope
 	)
@@ -119,20 +130,25 @@ function checkSecretTarget(
 		throw new Error(
 			'Secret receipt does not match this dialog and its registered request. Open a new call.',
 		)
-	if (target.destination === 'browser') {
-		if (
-			outcome.target?.destination !== 'browser' ||
-			outcome.target.origin !== target.origin ||
-			!outcome.handoff
-		)
-			throw new Error(
-				'Browser receipt does not match its declared destination and origin. Open a new call.',
-			)
-		return
-	}
+	if (target.destination === 'browser')
+		return checkBrowserTarget(outcome, target.origin)
 	if (outcome.target || outcome.handoff)
 		throw new Error(
 			'Vault receipt unexpectedly contains a browser handoff. Open a new call.',
+		)
+}
+
+function checkBrowserTarget(
+	outcome: Extract<BrokerResult, { status: 'stored' }>,
+	origin: string,
+): void {
+	if (
+		outcome.target?.destination !== 'browser' ||
+		outcome.target.origin !== origin ||
+		!outcome.handoff
+	)
+		throw new Error(
+			'Browser receipt does not match its declared destination and origin. Open a new call.',
 		)
 }
 
@@ -151,43 +167,52 @@ function checkAnswers(
 			throw new Error(
 				'Human dialog broker returned duplicate or missing question IDs.',
 			)
-		const count = answer.labels.length + (answer.text.trim() ? 1 : 0)
-		if (
-			!count ||
-			(!question.multiple && count !== 1) ||
-			new Set(answer.labels).size !== answer.labels.length ||
-			answer.labels.some(
-				label =>
-					!question.options.some(option => option.label === label),
-			)
-		)
-			throw new Error(
-				'Human dialog broker returned unknown labels or an invalid selection count.',
-			)
+		checkSelection(question, answer)
 	}
+}
+
+function checkSelection(question: BrokerQuestion, answer: BrokerAnswer): void {
+	const count = answer.labels.length + (answer.text.trim() ? 1 : 0)
+	if (
+		!count ||
+		(!question.multiple && count !== 1) ||
+		new Set(answer.labels).size !== answer.labels.length ||
+		answer.labels.some(
+			label => !question.options.some(option => option.label === label),
+		)
+	)
+		throw new Error(
+			'Human dialog broker returned unknown labels or an invalid selection count.',
+		)
 }
 
 function checkEvidence(request: QuestionRequest, outcome: Answered): void {
 	const clicks = outcome.evidence?.clicks ?? []
 	if (clicks.length !== request.questions.length)
 		throw new Error('Discord answer has no complete click evidence.')
-	for (const question of request.questions) {
-		const matches = clicks.filter(click => click.question === question.id)
-		const [click] = matches
-		if (
-			matches.length !== 1 ||
-			!click ||
-			!Number.isFinite(Date.parse(click.at)) ||
-			!click.messageUrl.startsWith(
-				`https://discord.com/channels/${click.guildId}/`,
-			)
-		)
-			throw new Error(
-				'Discord answer has invalid question-bound click evidence.',
-			)
-	}
+	for (const question of request.questions)
+		checkQuestionClick(question, clicks)
 	if (new Set(clicks.map(click => click.messageUrl)).size !== clicks.length)
 		throw new Error(
 			'Discord answer reused a message for different questions.',
+		)
+}
+
+function checkQuestionClick(
+	question: BrokerQuestion,
+	clicks: NonNullable<Answered['evidence']>['clicks'],
+): void {
+	const matches = clicks.filter(click => click.question === question.id)
+	const [click] = matches
+	if (
+		matches.length !== 1 ||
+		!click ||
+		!Number.isFinite(Date.parse(click.at)) ||
+		!click.messageUrl.startsWith(
+			`https://discord.com/channels/${click.guildId}/`,
+		)
+	)
+		throw new Error(
+			'Discord answer has invalid question-bound click evidence.',
 		)
 }
