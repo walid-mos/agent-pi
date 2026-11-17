@@ -44,9 +44,11 @@ export async function brokerQuestionnaire(
 		questionnaireReceipt(receipt, questions, local)
 	const wait = async (): Promise<AskResult> =>
 		convert(await broker.wait(watcher.signal))
+	const waiting = wait()
+	void Promise.allSettled([waiting])
 	try {
 		return await show({
-			wait: wait(),
+			wait: waiting,
 			submit: async outcome => {
 				local = outcome
 				const operation = submissionOperation(outcome)

@@ -26,9 +26,11 @@ export async function secretSession(
 	}
 	const wait = async (): Promise<undefined> =>
 		accept(await broker.wait(watching))
+	const waiting = wait()
+	void Promise.allSettled([waiting])
 	try {
 		await show({
-			wait: wait(),
+			wait: waiting,
 			submit: async typed =>
 				accept(
 					await broker.perform(

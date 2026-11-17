@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import { BrokerDialog } from '../extensions/lib/human-dialog/broker.ts'
 import { bindCompletion } from '../extensions/lib/human-dialog/completion.ts'
@@ -77,6 +79,20 @@ test('rejects an answer rebound to a delivery the dialog never registered', asyn
 	await dialog.open()
 	await assert.rejects(dialog.perform('get'), /registered request/)
 })
+
+for (const kind of ['question', 'secret']) {
+	test(`${kind} UI failure does not leave an unhandled poll rejection`, () => {
+		const script = fileURLToPath(
+			new URL('./fixtures/dialog-show-failure.mjs', import.meta.url),
+		)
+		const child = spawnSync(
+			process.execPath,
+			['--experimental-transform-types', script, kind],
+			{ encoding: 'utf8', timeout: 5000 },
+		)
+		assert.equal(child.status, 0, child.stderr)
+	})
+}
 
 test('rejects a receipt for another tool call before completing the local dialog', async () => {
 	const dialog = new BrokerDialog(request, async () => ({
