@@ -47,12 +47,16 @@ def estimate_key(row, host):
     return opaque(host["salt"], "estimate", fixed)
 
 
+def csv_number(value):
+    try:
+        return numeric(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def csv_row(raw):
-    result = {field: raw.get(column) for field, column in CSV_FIELDS.items()}
-    for field in NUMERIC_FIELDS:
-        value = result[field]
-        result[field] = float(value) if value not in (None, "") else None
-    return result
+    return {field: csv_number(raw.get(column)) if field in NUMERIC_FIELDS else raw.get(column)
+            for field, column in CSV_FIELDS.items()}
 
 
 def csv_rows(stream, digest=None):
@@ -93,7 +97,10 @@ def insert_estimate(database, host, raw):
         return
     if not math.isfinite(amount) or not 0 <= amount <= MAX_NUMBER:
         return
-    key = estimate_key(csv_row(raw), host)
+    row = csv_row(raw)
+    if any(row[field] is None for field in NUMERIC_FIELDS):
+        return
+    key = estimate_key(row, host)
     if key is None:
         return
     database.execute("""INSERT INTO estimates VALUES (?, ?, 1)
