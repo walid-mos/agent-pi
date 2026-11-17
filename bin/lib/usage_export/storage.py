@@ -53,14 +53,18 @@ def initialize(database):
     """)
 
 
+def database_path(path):
+    return path / "usage.sqlite"
+
+
 @contextmanager
 def state_database(path):
     private_directory(path)
     with open_private(path / "lock") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with open_private(path / "usage.sqlite"):
+        with open_private(database_path(path)):
             pass
-        database = sqlite3.connect(path / "usage.sqlite")
+        database = sqlite3.connect(database_path(path))
         try:
             initialize(database)
             with database:
@@ -71,7 +75,7 @@ def state_database(path):
 
 @contextmanager
 def read_only_database(path):
-    database = sqlite3.connect((path / "usage.sqlite").as_uri() + "?mode=ro", uri=True,
+    database = sqlite3.connect(database_path(path).as_uri() + "?mode=ro", uri=True,
                                timeout=BUSY_TIMEOUT_SECONDS)
     try:
         yield database

@@ -11,7 +11,7 @@ from .publish import read_manifest
 from .reconcile import reconcile
 from .schema import encode
 from .snapshot import price_snapshot
-from .storage import read_only_database
+from .storage import database_path, read_only_database
 
 SIGNAL_EXIT_BASE = 128
 DIFFERS = "usage-export-host: a closed day differs from the Magpie snapshot. See the reconcile counts."
@@ -67,7 +67,7 @@ def run(layout, now):
 
 
 def list_candidates(layout):
-    if not (layout.state / "usage.sqlite").is_file():
+    if not database_path(layout.state).is_file():
         print(NO_STATE, file=sys.stderr)
         return 1
     catalog = catalog_labels(present_catalog(layout))
