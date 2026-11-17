@@ -81,7 +81,7 @@ export const AskParams = Type.Object({
 	context: Type.Optional(
 		Type.String({
 			description:
-				'Context shown beside the questions on both terminal and Discord.',
+				'Context shown beside the questions on the Pots surface and bound into its receipt digest; the terminal shows only the questions.',
 		}),
 	),
 	questions: Type.Array(RawQuestionSchema, {
