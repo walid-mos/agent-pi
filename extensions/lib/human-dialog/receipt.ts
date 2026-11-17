@@ -86,7 +86,12 @@ function checkResult(
 			throw new Error(
 				'Human dialog broker returned a secret receipt for a question.',
 			)
-		return checkSecretTarget(outcome, request.target, receipt, deliveryId)
+		return checkSecretTarget(
+			outcome,
+			request.target,
+			receipt.id,
+			deliveryId,
+		)
 	}
 	if (outcome.status === 'answered')
 		checkQuestionResult(outcome, request, receipt.id, deliveryId)
@@ -120,11 +125,11 @@ function checkQuestionResult(
 function checkSecretTarget(
 	outcome: Extract<BrokerResult, { status: 'stored' }>,
 	target: BrokerTarget,
-	receipt: BrokerReceipt,
+	dialog: string,
 	deliveryId: string | undefined,
 ): void {
 	if (
-		outcome.dialog !== receipt.id ||
+		outcome.dialog !== dialog ||
 		(outcome.request && outcome.request !== deliveryId)
 	)
 		throw new Error(
