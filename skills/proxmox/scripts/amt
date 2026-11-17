@@ -1,0 +1,145 @@
+#!/usr/bin/python3 -IB
+import hashlib
+import html
+import http.client
+import os
+import re
+import sys
+import uuid
+from http import HTTPStatus
+
+ADDRESS = os.environ.get("AMT_ADDRESS", "")
+PASSWORD = os.environ.get("AMT_ADMIN_PASSWORD", "")
+MISSING_ENVIRONMENT = ("AMT_ADDRESS and AMT_ADMIN_PASSWORD must both be in the environment: run this script through "
+                       "~/.pi/agent/bin/infisical run --path /clients/proxmox, as the proxmox skill says")
+USAGE = "usage: amt status|reset"
+PORT = 16992
+USER = "admin"
+TIMEOUT_SECONDS = 20
+NONCE_COUNT = "00000001"
+STATUS_LINES = 40
+EVENT_LINES = 80
+CIM = "http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2"
+ADDRESSING = "http://schemas.xmlsoap.org/ws/2004/08/addressing"
+ANONYMOUS = f"{ADDRESSING}/role/anonymous"
+SOAP = "application/soap+xml;charset=UTF-8"
+POWER_ON = 2
+POWER_OFF_STATES = (6, 8)
+MASTER_BUS_RESET = 10
+POWER_NAMES = {2: "on", 3: "sleep-light", 4: "sleep-deep", 6: "off-hard", 7: "hibernate", 8: "off-soft", 9: "power-cycle-hard", 13: "off-hard-graceful"}
+
+
+def md5(text):
+    return hashlib.md5(text.encode()).hexdigest()
+
+
+def send(method, path, body, headers):
+    connection = http.client.HTTPConnection(ADDRESS, PORT, timeout=TIMEOUT_SECONDS)
+    connection.request(method, path, body=body, headers=headers)
+    response = connection.getresponse()
+    content = response.read().decode("utf-8", "replace")
+    challenge = response.getheader("WWW-Authenticate", "")
+    connection.close()
+    return response.status, content, challenge
+
+
+def authorization(method, path, challenge):
+    fields = dict(re.findall(r'(\w+)="?([^",]*)"?', challenge.removeprefix("Digest")))
+    if "auth" not in fields.get("qop", "").split(","):
+        sys.exit("AMT offered a digest challenge without qop=auth")
+    cnonce = uuid.uuid4().hex
+    secret_half = md5(f"{USER}:{fields['realm']}:{PASSWORD}")
+    answer = md5(f"{secret_half}:{fields['nonce']}:{NONCE_COUNT}:{cnonce}:auth:{md5(f'{method}:{path}')}")
+    return (f'Digest username="{USER}", realm="{fields["realm"]}", nonce="{fields["nonce"]}", uri="{path}", '
+            f'qop=auth, nc={NONCE_COUNT}, cnonce="{cnonce}", response="{answer}"')
+
+
+def request(method, path, body=None):
+    headers = {"Content-Type": SOAP} if body else {}
+    status, _, challenge = send(method, path, body, headers)
+    if status != HTTPStatus.UNAUTHORIZED or not challenge.startswith("Digest"):
+        sys.exit(f"AMT answered {status} without a digest challenge on {path}")
+    status, content, _ = send(method, path, body, {**headers, "Authorization": authorization(method, path, challenge)})
+    if status == HTTPStatus.UNAUTHORIZED:
+        sys.exit("AMT refused the admin login; stopped after this single attempt: never rerun with this password")
+    if status != HTTPStatus.OK:
+        sys.exit(f"AMT answered {status} on {path}")
+    return content
+
+
+def envelope(action, resource, body, selectors=""):
+    return (f'<?xml version="1.0" encoding="utf-8"?><Envelope xmlns="http://www.w3.org/2003/05/soap-envelope" '
+            f'xmlns:a="{ADDRESSING}" xmlns:w="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd" '
+            f'xmlns:n="http://schemas.xmlsoap.org/ws/2004/09/enumeration"><Header><a:Action>{action}</a:Action>'
+            f'<a:To>/wsman</a:To><w:ResourceURI>{resource}</w:ResourceURI><a:MessageID>uuid:{uuid.uuid4()}</a:MessageID>'
+            f'<a:ReplyTo><a:Address>{ANONYMOUS}</a:Address></a:ReplyTo><w:OperationTimeout>PT60S</w:OperationTimeout>'
+            f'{selectors}</Header><Body>{body}</Body></Envelope>')
+
+
+def power_state():
+    body = "<n:Enumerate><w:OptimizeEnumeration/><w:MaxElements>10</w:MaxElements></n:Enumerate>"
+    reply = request("POST", "/wsman", envelope("http://schemas.xmlsoap.org/ws/2004/09/enumeration/Enumerate",
+                                               f"{CIM}/CIM_AssociatedPowerManagementService", body))
+    match = re.search(r"PowerState>(\d+)<", reply)
+    if not match:
+        sys.exit("AMT returned no PowerState")
+    return int(match.group(1))
+
+
+def request_power(state):
+    selectors = '<w:SelectorSet><w:Selector Name="Name">Intel(r) AMT Power Management Service</w:Selector></w:SelectorSet>'
+    body = (f'<r:RequestPowerStateChange_INPUT xmlns:r="{CIM}/CIM_PowerManagementService"><r:PowerState>{state}</r:PowerState>'
+            f'<r:ManagedElement><a:Address>{ANONYMOUS}</a:Address><a:ReferenceParameters>'
+            f'<w:ResourceURI>{CIM}/CIM_ComputerSystem</w:ResourceURI><w:SelectorSet>'
+            f'<w:Selector Name="CreationClassName">CIM_ComputerSystem</w:Selector><w:Selector Name="Name">ManagedSystem</w:Selector>'
+            f'</w:SelectorSet></a:ReferenceParameters></r:ManagedElement></r:RequestPowerStateChange_INPUT>')
+    reply = request("POST", "/wsman", envelope(f"{CIM}/CIM_PowerManagementService/RequestPowerStateChange",
+                                               f"{CIM}/CIM_PowerManagementService", body, selectors))
+    match = re.search(r"ReturnValue>(\d+)<", reply)
+    return match.group(1) if match else "missing"
+
+
+def page_text(path):
+    content = request("GET", path)
+    links = sorted(set(re.findall(r'href="?([\w-]+\.htm)', content)))
+    text = html.unescape(re.sub(r"<[^>]+>", "\n", re.sub(r"(?is)<(script|style).*?</\1>", "", content)))
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines, links
+
+
+def status():
+    state = power_state()
+    print(f"power state: {state} ({POWER_NAMES.get(state, 'other')})")
+    lines, links = page_text("/index.htm")
+    print("pages:", " ".join(links))
+    print("\n".join(lines[:STATUS_LINES]))
+    event_page = next((link for link in links if "event" in link or "log" in link), None)
+    if event_page:
+        print(f"== {event_page}")
+        print("\n".join(page_text(f"/{event_page}")[0][:EVENT_LINES]))
+
+
+def reset():
+    state = power_state()
+    target = MASTER_BUS_RESET if state == POWER_ON else POWER_ON if state in POWER_OFF_STATES else None
+    if target is None:
+        sys.exit(f"power state {state} is neither on nor off; no action taken")
+    print(f"power state {state} -> request {target}: ReturnValue {request_power(target)}")
+
+
+COMMANDS = {"status": status, "reset": reset}
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:
+        sys.exit(USAGE)
+    if not ADDRESS or not PASSWORD:
+        sys.exit(MISSING_ENVIRONMENT)
+    try:
+        COMMANDS[sys.argv[1]]()
+    except OSError as error:
+        sys.exit(f"AMT did not answer on port {PORT}: {error}")
+
+
+if __name__ == "__main__":
+    main()
