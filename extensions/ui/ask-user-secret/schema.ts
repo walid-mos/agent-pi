@@ -44,22 +44,15 @@ export const SecretParams = Type.Object({
 		description:
 			'What the secret is, for the human: the account or site, and what it unlocks. Never the value.',
 	}),
-	kind: Type.Union(
-		[
-			Type.Literal('password'),
-			Type.Literal('token'),
-			Type.Literal('code'),
-			Type.Literal('other'),
-		],
-		{ description: 'Label shown to the human; it changes no behavior.' },
-	),
-	destination: Type.Union(
-		[Type.Literal('browser'), Type.Literal('infisical')],
-		{
-			description:
-				'browser: the value is parked under a one-time handle for a frontend_batch type step on that origin. infisical: the value is written to the vault and only its key name comes back.',
-		},
-	),
+	kind: Type.Enum(['password', 'token', 'code', 'other'], {
+		type: 'string',
+		description: 'Label shown to the human; it changes no behavior.',
+	}),
+	destination: Type.Enum(['browser', 'infisical'], {
+		type: 'string',
+		description:
+			'browser: the value is parked under a one-time handle for a frontend_batch type step on that origin. infisical: the value is written to the vault and only its key name comes back.',
+	}),
 	origin: Type.Optional(
 		Type.String({
 			minLength: 1,

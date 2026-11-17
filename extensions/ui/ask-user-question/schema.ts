@@ -8,7 +8,10 @@
 import { Type } from 'typebox'
 
 import { CaptureRecordSchema } from '#lib/attachments/capture-record.ts'
-import { BrokerReceiptSchema } from '#lib/human-dialog/schema.ts'
+import {
+	BrokerPolicySchema,
+	BrokerReceiptSchema,
+} from '#lib/human-dialog/schema.ts'
 
 // ── LLM tool input (validated by pi before the tool runs) ──────────────
 
@@ -67,19 +70,7 @@ const RawQuestionSchema = Type.Object({
 })
 
 export const AskParams = Type.Object({
-	policy: Type.Optional(
-		Type.Union(
-			[
-				Type.Literal('ordinary'),
-				Type.Literal('push'),
-				Type.Literal('local'),
-			],
-			{
-				description:
-					'Use push only for an explicit one-push approval, with exact scope. Ordinary is the default. Local stays in the terminal.',
-			},
-		),
-	),
+	policy: Type.Optional(BrokerPolicySchema),
 	scope: Type.Optional(
 		Type.String({
 			minLength: 1,

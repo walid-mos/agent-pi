@@ -2,6 +2,11 @@ import { Type } from 'typebox'
 
 import type { Static } from 'typebox'
 
+export const BrokerPolicySchema = Type.Enum(['ordinary', 'push', 'local'], {
+	type: 'string',
+	description:
+		'Use push only for an explicit one-push approval, with exact scope. Ordinary is the default. Local stays in the terminal.',
+})
 const Text = Type.String({ minLength: 1 })
 const SNOWFLAKE = '\\d{17,20}'
 const Snowflake = Type.String({ pattern: `^${SNOWFLAKE}$` })
@@ -89,11 +94,7 @@ export const BrokerResultSchema = Type.Union([
 export const BrokerReceiptSchema = Type.Object({
 	id: Text,
 	kind: Type.Union([Type.Literal('question'), Type.Literal('secret')]),
-	policy: Type.Union([
-		Type.Literal('ordinary'),
-		Type.Literal('push'),
-		Type.Literal('local'),
-	]),
+	policy: BrokerPolicySchema,
 	result: Type.Optional(BrokerResultSchema),
 	delivery: Type.Optional(Type.Object({ id: Text })),
 })
@@ -135,7 +136,7 @@ export type BrokerTarget =
 	  }
 export type QuestionDialog = {
 	kind: 'question'
-	policy: 'ordinary' | 'push' | 'local'
+	policy: Static<typeof BrokerPolicySchema>
 	context: string
 	scope?: string
 	questions: BrokerQuestion[]
