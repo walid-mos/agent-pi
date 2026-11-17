@@ -7,6 +7,8 @@ fail() { echo "sign-in: $1" >&2; exit 1; }
 	fail "BOAT_API_KEY and BOAT_ENVIRONMENT are missing: run this as /opt/agent-sandbox/session/with-vault --with boat $0"
 command -v boat >/dev/null && command -v workspace >/dev/null ||
 	fail "boat or workspace is missing: run $(dirname "$0")/install first"
+python3 -c 'import tomllib' >/dev/null 2>&1 ||
+	fail "Python 3.11+ with tomllib is required to read workspace TOML settings"
 
 boat --no-update status --json 2>/dev/null | jq -e '.account.signedIn == true' >/dev/null ||
 	fail "Boat refused the pot's control key; on the Mac, run the pot-access script for this pot"
@@ -16,8 +18,18 @@ environment_line="environment = \"$BOAT_ENVIRONMENT\""
 if [[ ! -e $config ]]; then
 	mkdir -p "$(dirname "$config")"
 	printf 'provider = "boat"\n\n[providers.boat]\n%s\n' "$environment_line" >"$config"
-elif ! grep -qxF "$environment_line" "$config"; then
-	fail "$config exists without the line '$environment_line' under [providers.boat]; add it there"
+fi
+if ! python3 - "$config" 2>/dev/null <<'PY'
+import os
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as source:
+    config = tomllib.load(source)
+sys.exit(config.get("providers", {}).get("boat", {}).get("environment") != os.environ["BOAT_ENVIRONMENT"])
+PY
+then
+	fail "$config must be valid TOML with environment = \"$BOAT_ENVIRONMENT\" under [providers.boat]; keep the file and correct that setting"
 fi
 
 workspace setup >/dev/null ||

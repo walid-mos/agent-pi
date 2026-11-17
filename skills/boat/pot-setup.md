@@ -35,7 +35,7 @@ Sign in through the broker:
   ~/.pi/agent/skills/boat/scripts/sign-in
 ```
 
-The script checks the key, creates workspace's config if absent and checks the selected environment without starting a VM. If workspace already has a config, it reports the exact environment line it needs. Keep the existing file and edit only that provider option.
+The script requires Python 3.11+ and reads the exact `[providers.boat].environment` value with its standard TOML parser. It checks the key, creates workspace's config if absent and checks the selected environment without starting a VM. A matching value in another table does not count. Keep an existing file and correct only that provider option if the script refuses it.
 
 Run jobs through `~/.pi/agent/skills/boat/scripts/job`, which wraps `workspace job` in that same vault reader. It refuses to forward the control key to a VM.
 
