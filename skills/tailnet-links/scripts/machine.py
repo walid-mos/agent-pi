@@ -20,6 +20,7 @@ COMMAND_LINK = Path.home() / ".local/bin/tailnet-link"
 LAUNCH_AGENT_LABEL = "fr.nextnode.deliverables"
 LAUNCH_AGENT_LOG = Path.home() / "Library/Logs" / (LAUNCH_AGENT_LABEL + ".log")
 SYSTEMD_UNIT = "tailnet-link.service"
+SYSTEMD_RUNTIME = Path("/run/systemd/system")
 INSTALL_SCRIPT_URL = "https://tailscale.com/install.sh"
 INSTALL_SECONDS = 300
 AUTH_KEY_VARIABLE = "TS_AUTHKEY"
@@ -121,7 +122,34 @@ def install_systemd_unit():
     run(["sudo", "systemctl", "restart", SYSTEMD_UNIT])
 
 
-SERVICE_INSTALLERS = {"Darwin": install_launch_agent, "Linux": install_systemd_unit}
+# Same test as sd_booted(): without systemd, as in a container, the machine's own supervisor runs the file server.
+def install_linux_service():
+    if SYSTEMD_RUNTIME.is_dir():
+        return install_systemd_unit()
+    tailnet.wait_until(is_serving, SERVER_READY_SECONDS, "The file server does not answer on " + deliverables.ORIGIN + " for "
+                       + deliverables.owner() + ". This machine has no systemd, so its own supervisor must run "
+                       + " ".join(SERVER_COMMAND) + " once " + str(deliverables.OWNER_FILE)
+                       + " exists, and restart it when that file changes.")
+
+
+SERVICE_INSTALLERS = {"Darwin": install_launch_agent, "Linux": install_linux_service}
+
+
+def is_userspace():
+    return tailnet.status("--peers=false").get("TUN") is False
+
+
+def await_route(root):
+    tailnet.wait_until(lambda: probe.fetch(root.rstrip("/") + HEALTH_PATH)[0] in ROUTED_STATUSES, CERTIFICATE_SECONDS,
+                       root + " does not answer from this machine. Review: tailscale serve status")
+
+
+# A userspace node gives this machine no route and no DNS to its own tailnet name, so Serve is read instead of fetched.
+def await_certificate(name):
+    if not is_mounted(name):
+        raise LinkError("Serve does not proxy https://" + name + deliverables.MOUNT_PATH + " to " + deliverables.ORIGIN
+                        + ". Review: tailscale serve status")
+    run([tailnet.cli(), "cert", "--cert-file=-", name], CERTIFICATE_SECONDS)
 
 
 def mount(name):
@@ -153,7 +181,9 @@ def setup():
     tailnet.wait_until(is_serving, SERVER_READY_SECONDS, "The file server does not answer on " + deliverables.ORIGIN + ".")
     mount(name)
     root = deliverables.url(name, deliverables.ROOT.resolve())
-    tailnet.wait_until(lambda: probe.fetch(root.rstrip("/") + HEALTH_PATH)[0] in ROUTED_STATUSES, CERTIFICATE_SECONDS,
-                       root + " does not answer from this machine. Review: tailscale serve status")
+    if is_userspace():
+        await_certificate(name)
+    else:
+        await_route(root)
     link_command()
     return root
