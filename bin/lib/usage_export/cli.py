@@ -65,7 +65,6 @@ class Settings:
     state: Path
     output: Path
     days: tuple
-    timezone: str
     zone: ZoneInfo
     now: str
     rescan: bool
@@ -80,7 +79,7 @@ def settings(options):
     first, last = date.fromisoformat(options.start), date.fromisoformat(options.through)
     if not 0 <= (last - first).days < MAX_REPORT_DAYS:
         raise ValueError("invalid date window")
-    state, output = options.state.resolve(), options.output.resolve()
+    ledger, state, output = (path.resolve() for path in (options.ledger, options.state, options.output))
     if state in output.parents or output in state.parents or state == output:
         raise ValueError("state and export must be separate")
     sources = [options.ledger, options.catalog, options.estimates]
@@ -88,16 +87,16 @@ def settings(options):
         if state in source.parents or output in source.parents or source in (state, output):
             raise ValueError("source must be separate")
     return Settings(
-        ledger=options.ledger, state=options.state, output=options.output,
+        ledger=ledger, state=state, output=output,
         days=tuple((first + timedelta(days=offset)).isoformat() for offset in range((last - first).days + 1)),
-        timezone=options.timezone, zone=ZoneInfo(options.timezone), now=timestamp(options.now),
+        zone=ZoneInfo(options.timezone), now=timestamp(options.now),
         rescan=options.rescan, catalog=catalog_labels(options.catalog), estimates=options.estimates,
         price_snapshot_at=timestamp(options.price_snapshot_at) if options.price_snapshot_at else None)
 
 
 def bind(database, run):
-    binding = {"ledger": str(run.ledger.resolve()), "output": str(run.output.resolve()),
-               "timezone": run.timezone, "catalog": run.catalog}
+    binding = {"ledger": str(run.ledger), "output": str(run.output), "timezone": run.zone.key,
+               "catalog": run.catalog}
     signature = hashlib.sha256(encode(binding).encode()).hexdigest()
     saved = database.execute("SELECT value FROM metadata WHERE key='binding'").fetchone()
     if saved and saved[0] != signature:

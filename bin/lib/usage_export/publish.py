@@ -86,7 +86,7 @@ def publish(database, identity, run, scan):
     first, last = database.execute("SELECT MIN(stamp), MAX(stamp) FROM events").fetchone()
     manifest = {"schema_version": VERSION, "host_uuid": identity["host_uuid"],
                 "source_ref": identity["source_ref"], "source": "magpie-ledger",
-                "report_timezone": run.timezone, "last_scan_at": scan.last_scan_at,
+                "report_timezone": run.zone.key, "last_scan_at": scan.last_scan_at,
                 "first_event_at": first, "last_event_at": last,
                 "source_retention": "unknown", "history": "partial",
                 "identity_semantics": "host-source-fingerprint-partial-ids",
