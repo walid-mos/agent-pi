@@ -41,16 +41,16 @@ def bounded_lines(stream):
         yield line.decode("utf-8")
 
 
-def load_estimates(database, host, options):
+def load_estimates(database, host, run):
     database.execute("DELETE FROM estimates")
-    with options.estimates.open("rb") as stream:
+    with run.estimates.open("rb") as stream:
         reader = csv.DictReader(bounded_lines(stream))
         if not set(CSV_FIELDS.values()).union({"cost_usd"}) <= set(reader.fieldnames or []):
             raise ValueError("unsupported CSV header")
         for raw in reader:
             insert_estimate(database, host, raw)
-    return {"price_source": "magpie-csv-snapshot", "price_snapshot_at": timestamp(options.price_snapshot_at),
-            "snapshot_sha256": file_digest(options.estimates)}
+    return {"price_source": "magpie-csv-snapshot", "price_snapshot_at": run.price_snapshot_at,
+            "snapshot_sha256": file_digest(run.estimates)}
 
 
 def insert_estimate(database, host, raw):
@@ -77,11 +77,11 @@ def revoke_ambiguous(database):
         database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
 
 
-def apply_estimates(database, host, options):
+def apply_estimates(database, host, run):
     revoke_ambiguous(database)
-    if options.estimates is None:
+    if run.estimates is None:
         return
-    provenance = load_estimates(database, host, options)
+    provenance = load_estimates(database, host, run)
     candidates = database.execute("""SELECT e.id, e.day, e.event, p.amount FROM events e
         JOIN estimates p ON e.estimate_key=p.key WHERE p.matches=1
         AND (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)=1""")

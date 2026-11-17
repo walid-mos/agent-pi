@@ -1,8 +1,6 @@
 import gzip
 import json
-from datetime import date, timedelta
 
-from .scan import load_checkpoint
 from .schema import DAY_ENTRY, MANIFEST, TOKENS, VERSION, encode, validate
 from .storage import private_directory, write_durably
 
@@ -67,21 +65,15 @@ def missing_day(day):
             "workload": None, "overhead": None, "late_events": 0, "conflicting_id_events": 0}
 
 
-def day_entries(database, options):
-    current = date.fromisoformat(options.start)
-    through = date.fromisoformat(options.through)
-    while current <= through:
-        day = current.isoformat()
-        saved = database.execute("SELECT entry FROM published WHERE day=?", (day,)).fetchone()
-        yield json.loads(saved[0]) if saved else missing_day(day)
-        current += timedelta(days=1)
+def day_entry(database, day):
+    saved = database.execute("SELECT entry FROM published WHERE day=?", (day,)).fetchone()
+    return json.loads(saved[0]) if saved else missing_day(day)
 
 
-def publish(database, identity, options, scan):
-    private_directory(options.output)
-    directory = options.output / "days"
+def publish(database, identity, run, scan):
+    private_directory(run.output)
+    directory = run.output / "days"
     private_directory(directory)
-    checkpoint = load_checkpoint(database)
     for (day,) in database.execute("SELECT day FROM dirty ORDER BY day"):
         entry = write_day(database, directory, day)
         database.execute("INSERT OR REPLACE INTO published VALUES (?, ?)", (day, encode(entry)))
@@ -89,13 +81,13 @@ def publish(database, identity, options, scan):
     first, last = database.execute("SELECT MIN(stamp), MAX(stamp) FROM events").fetchone()
     manifest = {"schema_version": VERSION, "host_uuid": identity["host_uuid"],
                 "source_ref": identity["source_ref"], "source": "magpie-ledger",
-                "report_timezone": options.timezone, "last_scan_at": checkpoint["last_scan_at"],
+                "report_timezone": run.timezone, "last_scan_at": scan.last_scan_at,
                 "first_event_at": first, "last_event_at": last,
                 "source_retention": "unknown", "history": "partial",
                 "identity_semantics": "host-source-fingerprint-partial-ids",
                 "attribution": "ledger-only", "direct_usage": "not-collected",
-                "scan": scan, "days": list(day_entries(database, options))}
+                "scan": scan.summary, "days": [day_entry(database, day) for day in run.days]}
     validate(manifest, MANIFEST)
     contents = (encode(manifest) + "\n").encode()
-    write_durably(options.output, lambda stream: stream.write(contents), lambda digest: "manifest.json")
+    write_durably(run.output, lambda stream: stream.write(contents), lambda digest: "manifest.json")
     return manifest

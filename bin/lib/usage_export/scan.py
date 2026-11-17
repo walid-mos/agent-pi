@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+from dataclasses import dataclass
 from datetime import timedelta
 
 from .estimates import estimate_key
@@ -9,6 +10,13 @@ from .schema import EVENT, encode, validate
 from .storage import MAX_LINE_BYTES
 
 ANCHOR_BYTES = 4096
+
+
+@dataclass(frozen=True)
+class Scan:
+    summary: dict
+    read_bytes: int
+    last_scan_at: str
 
 
 def load_checkpoint(database):
@@ -21,8 +29,8 @@ def anchor(stream, offset):
     return hashlib.sha256(stream.read(min(offset, ANCHOR_BYTES))).hexdigest()
 
 
-def resume_offset(stream, snapshot, checkpoint, options):
-    if not checkpoint or options.rescan:
+def resume_offset(stream, snapshot, checkpoint, run):
+    if not checkpoint or run.rescan:
         return 0
     is_same_file = checkpoint["device"] == snapshot.st_dev and checkpoint["inode"] == snapshot.st_ino
     if not is_same_file or snapshot.st_size < checkpoint["offset"]:
@@ -32,8 +40,8 @@ def resume_offset(stream, snapshot, checkpoint, options):
     return checkpoint["offset"]
 
 
-def record_event(row, identity, database, options, catalog):
-    event = normalize(row, identity, database, options.zone, catalog)
+def record_event(row, identity, database, run):
+    event = normalize(row, identity, database, run.zone, run.catalog)
     if event is None:
         return "ignored_rows"
     identifier = event["event_id"]
@@ -41,7 +49,7 @@ def record_event(row, identity, database, options, catalog):
         return "duplicate_rows"
     validate(event, EVENT)
     day = event["ts_utc"][:10]
-    is_late = instant(options.now).date() > instant(event["ts_utc"]).date() + timedelta(days=1)
+    is_late = instant(run.now).date() > instant(event["ts_utc"]).date() + timedelta(days=1)
     inserted = database.execute("INSERT OR IGNORE INTO events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (identifier, day, event["ts_utc"], event["kind"], event["response_ref"], event["request_ref"],
          estimate_key(row, identity), int(is_late), encode(event))).rowcount
@@ -53,12 +61,12 @@ def record_event(row, identity, database, options, catalog):
     return None
 
 
-def consume_line(line, identity, database, options, catalog):
+def consume_line(line, identity, database, run):
     if len(line) > MAX_LINE_BYTES:
         return "invalid_rows"
     try:
         row = json.loads(line)
-        return record_event(row, identity, database, options, catalog)
+        return record_event(row, identity, database, run)
     except (ValueError, TypeError, RecursionError, OverflowError):
         return "invalid_rows"
 
@@ -71,36 +79,36 @@ def read_bounded_line(stream, snapshot_size):
     return first, last.endswith(b"\n")
 
 
-def consume(stream, snapshot_size, identity, database, options, catalog, counters):
+def consume(stream, snapshot_size, identity, database, run, counters):
     while stream.tell() < snapshot_size:
         start = stream.tell()
         line, is_complete = read_bounded_line(stream, snapshot_size)
         if not is_complete:
             stream.seek(start)
             return
-        outcome = consume_line(line, identity, database, options, catalog)
+        outcome = consume_line(line, identity, database, run)
         if outcome:
             counters[outcome] += 1
 
 
-def scan_ledger(database, identity, options, catalog):
+def scan_ledger(database, identity, run):
     checkpoint = load_checkpoint(database)
-    with options.ledger.open("rb") as stream:
+    with run.ledger.open("rb") as stream:
         snapshot = os.fstat(stream.fileno())
-        offset = resume_offset(stream, snapshot, checkpoint, options)
+        offset = resume_offset(stream, snapshot, checkpoint, run)
         counters = {key: 0 for key in ("invalid_rows", "ignored_rows", "duplicate_rows")}
-        if offset and checkpoint:
+        if offset:
             counters.update(checkpoint["counters"])
         else:
             database.execute("DELETE FROM seen")
         stream.seek(offset)
-        consume(stream, snapshot.st_size, identity, database, options, catalog, counters)
+        consume(stream, snapshot.st_size, identity, database, run, counters)
         end = stream.tell()
-        options.read_bytes = snapshot.st_size - offset
         saved = {"device": snapshot.st_dev, "inode": snapshot.st_ino, "offset": end,
                  "anchor": anchor(stream, end), "counters": counters,
-                 "last_scan_at": options.now}
+                 "last_scan_at": run.now}
         if checkpoint and end == offset and end == checkpoint["offset"]:
             saved["last_scan_at"] = checkpoint["last_scan_at"]
         database.execute("INSERT OR REPLACE INTO metadata VALUES ('checkpoint', ?)", (encode(saved),))
-    return {"ledger_bytes": end, **counters, "deferred_tail_bytes": snapshot.st_size - end}
+    return Scan(summary={"ledger_bytes": end, **counters, "deferred_tail_bytes": snapshot.st_size - end},
+                read_bytes=snapshot.st_size - offset, last_scan_at=saved["last_scan_at"])
