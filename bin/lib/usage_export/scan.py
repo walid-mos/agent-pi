@@ -45,9 +45,9 @@ def record_event(row, identity, database, run):
     if event is None:
         return "ignored_rows"
     identifier = event["event_id"]
+    validate(event, EVENT)
     if database.execute("INSERT OR IGNORE INTO seen VALUES (?)", (identifier,)).rowcount == 0:
         return "duplicate_rows"
-    validate(event, EVENT)
     day = event["ts_utc"][:10]
     is_late = instant(run.now).date() > instant(event["ts_utc"]).date() + timedelta(days=1)
     inserted = database.execute("INSERT OR IGNORE INTO events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -104,10 +104,11 @@ def scan_ledger(database, identity, run):
         stream.seek(offset)
         consume(stream, snapshot.st_size, identity, database, run, counters)
         end = stream.tell()
+        boundary = anchor(stream, end)
         saved = {"device": snapshot.st_dev, "inode": snapshot.st_ino, "offset": end,
-                 "anchor": anchor(stream, end), "counters": counters,
+                 "anchor": boundary, "counters": counters,
                  "last_scan_at": run.now}
-        if checkpoint and end == offset and end == checkpoint["offset"]:
+        if checkpoint and end == checkpoint["offset"] and boundary == checkpoint["anchor"]:
             saved["last_scan_at"] = checkpoint["last_scan_at"]
         database.execute("INSERT OR REPLACE INTO metadata VALUES ('checkpoint', ?)", (encode(saved),))
     return Scan(summary={"ledger_bytes": end, **counters, "deferred_tail_bytes": snapshot.st_size - end},

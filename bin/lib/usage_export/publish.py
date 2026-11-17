@@ -2,7 +2,7 @@ import gzip
 import json
 
 from .schema import DAY_ENTRY, MANIFEST, TOKENS, VERSION, encode, validate
-from .storage import private_directory, read_json, write_durably
+from .storage import file_digest, private_directory, read_json, write_durably
 
 MANIFEST_FILE = "manifest.json"
 MAX_REPORT_DAYS = 3660
@@ -75,6 +75,24 @@ def day_entry(database, day):
     return json.loads(saved[0]) if saved else missing_day(day)
 
 
+def verified_entry(database, directory, day):
+    saved = database.execute("SELECT entry FROM published WHERE day=?", (day,)).fetchone()
+    if not saved:
+        return None
+    entry = json.loads(saved[0])
+    path = directory.parent / entry["file"]
+    if path.is_file() and file_digest(path) == entry["sha256"]:
+        return entry
+    return None
+
+
+def repair_published(database, directory):
+    for (day,) in database.execute("SELECT day FROM published ORDER BY day").fetchall():
+        if verified_entry(database, directory, day) is None:
+            entry = write_day(database, directory, day)
+            database.execute("INSERT OR REPLACE INTO published VALUES (?, ?)", (day, encode(entry)))
+
+
 def publish(database, identity, run, scan):
     private_directory(run.output)
     directory = run.output / "days"
@@ -83,6 +101,7 @@ def publish(database, identity, run, scan):
         entry = write_day(database, directory, day)
         database.execute("INSERT OR REPLACE INTO published VALUES (?, ?)", (day, encode(entry)))
     database.execute("DELETE FROM dirty")
+    repair_published(database, directory)
     first, last = database.execute("SELECT MIN(stamp), MAX(stamp) FROM events").fetchone()
     manifest = {"schema_version": VERSION, "host_uuid": identity["host_uuid"],
                 "source_ref": identity["source_ref"], "source": "magpie-ledger",

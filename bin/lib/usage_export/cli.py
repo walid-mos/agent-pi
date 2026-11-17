@@ -52,7 +52,7 @@ def catalog_labels(path):
     for values in catalog.values():
         if not isinstance(values, list) or not all(is_public_label(value) for value in values):
             raise ValueError("invalid public catalog")
-    return catalog
+    return {field: sorted(set(values)) for field, values in catalog.items()}
 
 
 def is_public_label(value):
@@ -79,7 +79,8 @@ def settings(options):
     first, last = date.fromisoformat(options.start), date.fromisoformat(options.through)
     if not 0 <= (last - first).days < MAX_REPORT_DAYS:
         raise ValueError("invalid date window")
-    ledger, state, output = (path.resolve() for path in (options.ledger, options.state, options.output))
+    ledger = options.ledger.absolute()
+    state, output = (path.resolve() for path in (options.state, options.output))
     if state in output.parents or output in state.parents or state == output:
         raise ValueError("state and export must be separate")
     sources = [options.ledger, options.catalog, options.estimates]
@@ -126,6 +127,9 @@ def main():
             return 0
         print(encode(export_usage(settings(options))))
         return 0
+    except BlockingIOError:
+        print("usage-export: state is busy with another export. Wait for it to finish.", file=sys.stderr)
+        return 1
     except (Exception, KeyboardInterrupt):
         print("usage-export: export failed. Check input format, private state, and output permissions. No source was changed.", file=sys.stderr)
         return 1

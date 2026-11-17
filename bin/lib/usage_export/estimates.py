@@ -1,6 +1,7 @@
 import csv
 import json
 import math
+import re
 
 from .normalize import MAX_NUMBER, TOKEN_FIELDS, numeric, opaque, text, timestamp, unknown_cost
 from .schema import encode
@@ -14,9 +15,31 @@ CSV_FIELDS = {"t": "time", "req": "requested_model", "provider": "provider", "se
 NUMERIC_FIELDS = (*TOKEN_FIELDS.values(), "ms", "status")
 
 
+OFFSETLESS = re.compile(r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,9})?", re.ASCII)
+
+
+def csv_instant(value):
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    try:
+        return timestamp(candidate)
+    except ValueError:
+        pass
+    if not OFFSETLESS.fullmatch(candidate):
+        return None
+    try:
+        return timestamp(candidate.replace(" ", "T") + "Z")
+    except ValueError:
+        return None
+
+
 def estimate_key(row, host):
+    stamp = csv_instant(row.get("t"))
+    if stamp is None:
+        return None
     fixed = {field: text(row.get(field)) for field in CSV_FIELDS if field not in NUMERIC_FIELDS}
-    fixed["t"] = timestamp(row.get("t"))[:19] + "Z"
+    fixed["t"] = stamp[:19] + "Z"
     for field in NUMERIC_FIELDS:
         value = numeric(row.get(field))
         fixed[field] = float(value) if value is not None else None
@@ -25,9 +48,6 @@ def estimate_key(row, host):
 
 def csv_row(raw):
     result = {field: raw.get(column) for field, column in CSV_FIELDS.items()}
-    value = result["t"]
-    if isinstance(value, str) and len(value) == 19:
-        result["t"] = value.replace(" ", "T") + "Z"
     for field in NUMERIC_FIELDS:
         value = result[field]
         result[field] = float(value) if value not in (None, "") else None
@@ -38,7 +58,7 @@ def bounded_lines(stream):
     while line := stream.readline(MAX_LINE_BYTES + 1):
         if len(line) > MAX_LINE_BYTES:
             raise ValueError("oversize CSV row")
-        yield line.decode("utf-8")
+        yield line.decode("utf-8-sig")
 
 
 def load_estimates(database, host, run):
@@ -60,21 +80,34 @@ def insert_estimate(database, host, raw):
     if not math.isfinite(amount) or not 0 <= amount <= MAX_NUMBER:
         raise ValueError("invalid cost estimate")
     key = estimate_key(csv_row(raw), host)
+    if key is None:
+        return
     database.execute("""INSERT INTO estimates VALUES (?, ?, 1)
         ON CONFLICT(key) DO UPDATE SET matches=matches+1""", (key, amount))
 
 
-def revoke_ambiguous(database):
-    candidates = database.execute("""SELECT id, day, event FROM events WHERE estimate_key IN (
-        SELECT DISTINCT e.estimate_key FROM events e JOIN dirty d ON e.day=d.day
-        WHERE (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)>1)""").fetchall()
-    for identifier, day, encoded in candidates:
+def set_cost(database, identifier, day, event, cost):
+    event["cost"] = cost
+    database.execute("UPDATE events SET event=? WHERE id=?", (encode(event), identifier))
+    database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
+
+
+def revoke(database, query):
+    for identifier, day, encoded in database.execute(query):
         event = json.loads(encoded)
-        if event["cost"]["estimate_usd"] is None:
-            continue
-        event["cost"] = unknown_cost()
-        database.execute("UPDATE events SET event=? WHERE id=?", (encode(event), identifier))
-        database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
+        if event["cost"]["estimate_usd"] is not None:
+            set_cost(database, identifier, day, event, unknown_cost())
+
+
+def revoke_ambiguous(database):
+    revoke(database, """SELECT id, day, event FROM events WHERE estimate_key IN (
+        SELECT DISTINCT e.estimate_key FROM events e JOIN dirty d ON e.day=d.day
+        WHERE (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)>1)""")
+
+
+def revoke_snapshot_ambiguity(database):
+    revoke(database, """SELECT e.id, e.day, e.event FROM events e JOIN estimates p
+        ON e.estimate_key=p.key WHERE p.matches>1""")
 
 
 def apply_estimates(database, host, run):
@@ -82,13 +115,12 @@ def apply_estimates(database, host, run):
     if run.estimates is None:
         return
     provenance = load_estimates(database, host, run)
+    revoke_snapshot_ambiguity(database)
     candidates = database.execute("""SELECT e.id, e.day, e.event, p.amount FROM events e
         JOIN estimates p ON e.estimate_key=p.key WHERE p.matches=1
-        AND (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)=1""").fetchall()
+        AND (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)=1""")
     for identifier, day, encoded, amount in candidates:
         event = json.loads(encoded)
-        if event["cost"]["estimate_usd"] is not None:
-            continue
-        event["cost"] = {**event["cost"], **provenance, "estimate_usd": amount}
-        database.execute("UPDATE events SET event=? WHERE id=?", (encode(event), identifier))
-        database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
+        if event["cost"]["estimate_usd"] is None:
+            set_cost(database, identifier, day, event,
+                     {**event["cost"], **provenance, "estimate_usd": amount})
