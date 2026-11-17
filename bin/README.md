@@ -21,6 +21,10 @@ shadow a system binary or is pi-owned:
 - `usage-export` — source-only local Magpie usage exporter. Its CLI, authoritative
   schema command, privacy boundary, coverage semantics, and adapter limits are in
   [Per-host usage export](lib/usage_export/README.md).
+- `usage-export-host` — runs `usage-export` on a host's standard paths with a
+  Magpie price snapshot and a reconcile, and lists catalog candidates. Nothing
+  calls it until a schedule does. See
+  [Host runner](lib/usage_export/README.md#host-runner).
 - `pi-drift.ts` — `pnpm run drift`: fails when the running `pi` differs from
   `AUDITED_PI_VERSION` (`extensions/lib/ui/pi-runtime.ts`).
 - `pi-token-sync` — on the Mac that signed in to Codex, refreshes through Pi's

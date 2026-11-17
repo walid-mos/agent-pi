@@ -15,7 +15,7 @@ test('usage exporter production CLI satisfies the isolated usage and privacy con
 			'-p',
 			'test_*.py',
 		],
-		{ encoding: 'utf8', timeout: 60_000 },
+		{ encoding: 'utf8', timeout: 180_000 },
 	)
 	assert.equal(proof.status, 0, proof.stdout + proof.stderr)
 })

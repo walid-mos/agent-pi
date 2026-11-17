@@ -1,9 +1,7 @@
 import json
 import subprocess
 
-from support import CLI, ExportCase
-
-CANARY = "private-client-branch@example.invalid"
+from support import CANARY, CLI, ExportCase
 
 
 class ContractTests(ExportCase):

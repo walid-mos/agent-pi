@@ -68,6 +68,15 @@ def state_database(path):
             database.close()
 
 
+@contextmanager
+def read_only_database(path):
+    database = sqlite3.connect((path / "usage.sqlite").as_uri() + "?mode=ro", uri=True)
+    try:
+        yield database
+    finally:
+        database.close()
+
+
 def identity(database):
     row = database.execute("SELECT value FROM metadata WHERE key='identity'").fetchone()
     if row:
