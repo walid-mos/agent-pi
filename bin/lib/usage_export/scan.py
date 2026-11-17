@@ -76,7 +76,7 @@ def read_bounded_line(stream, snapshot_size):
     last = first
     while not last.endswith(b"\n") and stream.tell() < snapshot_size:
         last = stream.readline(min(MAX_LINE_BYTES, snapshot_size - stream.tell()))
-    return first, last.endswith(b"\n")
+    return first.removesuffix(b"\n"), last.endswith(b"\n")
 
 
 def consume(stream, snapshot_size, identity, database, run, counters):
