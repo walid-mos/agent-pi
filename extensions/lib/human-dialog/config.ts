@@ -7,13 +7,11 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
-import type { BrokerRequest, BrokerSource } from './schema.ts'
+import type { BrokerSource, UnboundRequest } from './schema.ts'
 
-export type BrokerFactory = ((
-	request:
-		| Omit<Extract<BrokerRequest, { kind: 'question' }>, 'source'>
-		| Omit<Extract<BrokerRequest, { kind: 'secret' }>, 'source'>,
-) => BrokerDialog) & { readonly source: BrokerSource }
+export type BrokerFactory = ((request: UnboundRequest) => BrokerDialog) & {
+	readonly source: BrokerSource
+}
 
 const WORKER_FLAG = 'human-dialog-worker'
 const BROKER_FLAG = 'human-dialog-broker'
@@ -58,7 +56,7 @@ export function configuredBroker(
 		)
 	const source = { type: 'worker', worker, session, call } as const
 	return Object.assign(
-		(request: Parameters<BrokerFactory>[0]) =>
+		(request: UnboundRequest) =>
 			new BrokerDialog({ ...request, source }, brokerTransport(script)),
 		{ source },
 	)

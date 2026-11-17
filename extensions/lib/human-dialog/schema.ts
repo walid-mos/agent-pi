@@ -3,6 +3,8 @@ import { Type } from 'typebox'
 import type { Static } from 'typebox'
 
 const Text = Type.String({ minLength: 1 })
+const SNOWFLAKE = '\\d{17,20}'
+const Snowflake = Type.String({ pattern: `^${SNOWFLAKE}$` })
 export const BrokerAnswerSchema = Type.Object(
 	{
 		id: Text,
@@ -14,11 +16,10 @@ export const BrokerAnswerSchema = Type.Object(
 const ClickSchema = Type.Object(
 	{
 		question: Text,
-		userId: Type.String({ pattern: '^\\d{17,20}$' }),
-		guildId: Type.String({ pattern: '^\\d{17,20}$' }),
+		userId: Snowflake,
+		guildId: Snowflake,
 		messageUrl: Type.String({
-			pattern:
-				'^https://discord\\.com/channels/\\d{17,20}/\\d{17,20}/\\d{17,20}$',
+			pattern: `^https://discord\\.com/channels/${SNOWFLAKE}/${SNOWFLAKE}/${SNOWFLAKE}$`,
 		}),
 		at: Text,
 	},
@@ -101,12 +102,16 @@ export const BrokerReceiptSchema = Type.Object({
 export type BrokerAnswer = Static<typeof BrokerAnswerSchema>
 export type BrokerResult = Static<typeof BrokerResultSchema>
 export type BrokerReceipt = Static<typeof BrokerReceiptSchema>
-export type BrokerSource = {
-	type: 'worker'
-	worker: string
-	session: string
-	call: string
-}
+export const BrokerSourceSchema = Type.Object(
+	{
+		type: Type.Literal('worker'),
+		worker: Type.String(),
+		session: Type.String(),
+		call: Type.String(),
+	},
+	{ additionalProperties: false },
+)
+export type BrokerSource = Static<typeof BrokerSourceSchema>
 export type BrokerQuestion = {
 	id: string
 	prompt: string
@@ -129,13 +134,17 @@ export type BrokerTarget =
 			name: string
 			replace: boolean
 	  }
-export type BrokerRequest = { source: BrokerSource } & (
-	| {
-			kind: 'question'
-			policy: 'ordinary' | 'push' | 'local'
-			context: string
-			scope?: string
-			questions: BrokerQuestion[]
-	  }
-	| { kind: 'secret'; purpose: string; target: BrokerTarget }
-)
+export type QuestionDialog = {
+	kind: 'question'
+	policy: 'ordinary' | 'push' | 'local'
+	context: string
+	scope?: string
+	questions: BrokerQuestion[]
+}
+export type SecretDialog = {
+	kind: 'secret'
+	purpose: string
+	target: BrokerTarget
+}
+export type UnboundRequest = QuestionDialog | SecretDialog
+export type BrokerRequest = { source: BrokerSource } & UnboundRequest
