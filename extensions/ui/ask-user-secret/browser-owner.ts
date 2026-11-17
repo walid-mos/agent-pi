@@ -65,11 +65,9 @@ export class BrowserSecretOwner {
 				owner.accept(candidate),
 			)
 			return owner
-		} catch {
+		} catch (error) {
 			await owner.dispose()
-			throw new Error(
-				'The private browser-secret socket could not start.',
-			)
+			throw error
 		}
 	}
 
