@@ -6,7 +6,6 @@ import { join } from 'node:path'
 
 import type { Server, Socket } from 'node:net'
 
-const INPUT_LIMIT = 16_384
 const INPUT_TIMEOUT_MS = 5000
 const DIRECTORY_MODE = 0o700
 const SOCKET_MODE = 0o600
@@ -21,16 +20,18 @@ export class PrivateSecretServer {
 
 	private constructor(
 		private readonly directory: string,
+		private readonly inputLimit: number,
 		private readonly accept: (candidate: unknown) => object,
 	) {
 		this.socket = join(directory, 'secret.sock')
 	}
 
 	static async open(
+		inputLimit: number,
 		accept: (candidate: unknown) => object,
 	): Promise<PrivateSecretServer> {
 		const directory = await mkdtemp(join(tmpdir(), 'pi-human-'))
-		const endpoint = new PrivateSecretServer(directory, accept)
+		const endpoint = new PrivateSecretServer(directory, inputLimit, accept)
 		try {
 			await chmod(directory, DIRECTORY_MODE)
 			await endpoint.listen()
@@ -75,7 +76,7 @@ export class PrivateSecretServer {
 		let packet = Buffer.alloc(0)
 		let isHandled = false
 		connection.on('data', (chunk: Buffer) => {
-			if (isHandled || packet.length + chunk.length > INPUT_LIMIT) {
+			if (isHandled || packet.length + chunk.length > this.inputLimit) {
 				connection.destroy()
 				return
 			}

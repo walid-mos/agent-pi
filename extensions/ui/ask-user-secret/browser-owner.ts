@@ -61,8 +61,16 @@ export class BrowserSecretOwner {
 	}): Promise<BrowserSecretOwner> {
 		const owner = new BrowserSecretOwner(binding)
 		try {
-			owner.endpoint = await PrivateSecretServer.open(candidate =>
-				owner.accept(candidate),
+			const largestFrame = JSON.stringify({
+				version: 1,
+				...binding,
+				capability: owner.capability,
+				value: '\u0001'.repeat(MAX_SECRET_LENGTH),
+			})
+			const inputLimit = Buffer.byteLength(`${largestFrame}\n`)
+			owner.endpoint = await PrivateSecretServer.open(
+				inputLimit,
+				candidate => owner.accept(candidate),
 			)
 			return owner
 		} catch (error) {

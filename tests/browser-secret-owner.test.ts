@@ -70,6 +70,26 @@ function acknowledgment(candidate: unknown): {
 	return { ...binding, handoff }
 }
 
+test('accepts a maximum-length secret whose JSON escapes exceed the old frame limit', async context => {
+	const owner = await ownerFor(context)
+	const escapedSecret = '\u0001'.repeat(4096)
+	assert.equal(
+		Buffer.byteLength(JSON.stringify({ value: escapedSecret })),
+		24_588,
+	)
+	const ack = acknowledgment(
+		await exchange(owner.socket, {
+			...payload(owner),
+			value: escapedSecret,
+		}),
+	)
+	const issued = owner.confirm(ack)
+	assert.deepEqual(secretHandoff().claim(issued.handle, origin), {
+		ok: true,
+		value: escapedSecret,
+	})
+})
+
 test('private socket and directory have restrictive permissions and ACK reveals neither value nor handle', async context => {
 	const owner = await ownerFor(context)
 	assert.equal((await stat(owner.socket)).mode & 0o777, 0o600)
