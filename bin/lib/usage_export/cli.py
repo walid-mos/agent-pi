@@ -9,13 +9,12 @@ from zoneinfo import ZoneInfo
 
 from .estimates import apply_estimates
 from .normalize import CATEGORIES, timestamp
-from .publish import publish, read_manifest
+from .publish import MAX_REPORT_DAYS, publish, read_manifest
 from .scan import scan_ledger
 from .schema import SCHEMA, encode
 from .storage import identity, read_json, state_database
 
 MAX_CONFIG_BYTES = 1024 * 1024
-MAX_REPORT_DAYS = 3660
 
 
 class Parser(argparse.ArgumentParser):

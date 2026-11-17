@@ -5,7 +5,9 @@ from .schema import DAY_ENTRY, MANIFEST, TOKENS, VERSION, encode, validate
 from .storage import private_directory, read_json, write_durably
 
 MANIFEST_FILE = "manifest.json"
-MAX_MANIFEST_BYTES = 1024 * 1024
+MAX_REPORT_DAYS = 3660
+MAX_DAY_ENTRY_BYTES = 4096
+MAX_MANIFEST_BYTES = (MAX_REPORT_DAYS + 1) * MAX_DAY_ENTRY_BYTES
 
 
 def empty_total():
