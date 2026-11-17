@@ -96,13 +96,9 @@ def insert_estimate(database, host, raw):
         ON CONFLICT(key) DO UPDATE SET matches=matches+1""", (key, amount))
 
 
-def set_cost(database, identifier, day, event, cost):
-    rewrite_event(database, identifier, day, {**event, "cost": cost})
-
-
 def revoke(database, query):
     for identifier, day, encoded in database.execute(query).fetchall():
-        set_cost(database, identifier, day, json.loads(encoded), unknown_cost())
+        rewrite_event(database, identifier, day, {**json.loads(encoded), "cost": unknown_cost()})
 
 
 def revoke_ambiguous(database):
@@ -126,4 +122,5 @@ def apply_estimates(database, host, run):
         AND NOT {PRICED}""").fetchall()
     for identifier, day, encoded, amount in candidates:
         event = json.loads(encoded)
-        set_cost(database, identifier, day, event, {**event["cost"], **provenance, "estimate_usd": amount})
+        cost = {**event["cost"], **provenance, "estimate_usd": amount}
+        rewrite_event(database, identifier, day, {**event, "cost": cost})
