@@ -2,8 +2,6 @@
 
 Extends **Test Quality: Every Test Must Be Falsifiable** in `SKILL.md`; the core rules live there and are not restated - this file adds the worked examples, the mechanics, and the judgment calls. Tests are the only artifacts whose product is confidence: a suite full of mirrors is worse than no suite - it shows green while the code rots.
 
-**Authorization gate:** follow `~/.pi/agent/AGENTS.md` under Tests before applying this reference.
-
 ## Prove the Test Can Fail
 
 - **Mutate-to-kill mechanics:** temporarily break the code the test exercises - invert a condition, off-by-one a loop bound, swap an operator - run the suite, confirm the test goes red, then restore. Never leave the mutation behind. Anything heavily mocked must pass this check before being trusted.

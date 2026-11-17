@@ -76,5 +76,5 @@ A thrown name states the domain failure (`TransactionFailed`, `PaymentDeclined`)
 ## Cross-References (authoritative elsewhere - never restate here)
 
 - Fail-fast placement, error message content (what was expected / received / to do), never signaling broken results with ambiguous values: `~/.pi/agent/skills/coding/SKILL.md` (Fail Fast section).
-- A function's failure contract, when the user authorized test work (red first): `~/.pi/agent/skills/coding/testing.md` and `~/.pi/agent/skills/coding-tdd/SKILL.md` (Three Laws, try-catch-first comes with its failing test).
+- A function's failure contract, when it gets a test (red first): `~/.pi/agent/skills/coding/testing.md` and `~/.pi/agent/skills/coding-tdd/SKILL.md` (Three Laws, try-catch-first comes with its failing test).
 - Library exception types get translated at wrappers, never caught directly in feature code: `~/.pi/agent/skills/coding-boundaries/SKILL.md`.
