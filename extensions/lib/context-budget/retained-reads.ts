@@ -4,6 +4,7 @@ import { relative, sep } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 
+import { contentText } from '#lib/content-text.ts'
 import {
 	describeOperation,
 	lookupSections,
@@ -75,10 +76,6 @@ function readCalls(
 	}
 }
 
-function resultText(content: readonly TextPart[]): string {
-	return content.map(block => block.text ?? '').join('')
-}
-
 /** The text each skill read produced, as the model saw it: the whole `read` result, or its `lookup` section. */
 function readTexts(
 	toolName: string,
@@ -87,9 +84,9 @@ function readTexts(
 ): { path: string; text: string }[] {
 	if (toolName === 'read') {
 		const [read] = reads
-		return read ? [{ path: read.path, text: resultText(content) }] : []
+		return read ? [{ path: read.path, text: contentText(content, '') }] : []
 	}
-	const sections = lookupSections(resultText(content))
+	const sections = lookupSections(contentText(content, ''))
 	return reads.flatMap(read => {
 		const section = sections.find(
 			candidate =>

@@ -5,6 +5,8 @@
  * silent truncation.
  */
 
+import { quote } from '#lib/shell-quote.ts'
+
 import { hashFiles, inspectFiles } from './git-files.ts'
 import {
 	assertNoConflicts,
@@ -114,7 +116,5 @@ function diffCommandFor(
 }
 
 function shellQuote(candidate: string): string {
-	return /[^\w./:@-]/u.test(candidate)
-		? `'${candidate.replaceAll("'", "'\\''")}'`
-		: candidate
+	return /[^\w./:@-]/u.test(candidate) ? quote(candidate) : candidate
 }
