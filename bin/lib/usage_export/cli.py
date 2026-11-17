@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import re
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -7,7 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .estimates import apply_estimates
-from .normalize import timestamp
+from .normalize import CATEGORIES, timestamp
 from .publish import publish, read_manifest
 from .scan import scan_ledger
 from .schema import SCHEMA, encode
@@ -47,7 +48,7 @@ def catalog_labels(path):
     if path is None:
         return {}
     catalog = read_json(path, MAX_CONFIG_BYTES)
-    if not isinstance(catalog, dict) or set(catalog) - {"req", "served", "provider", "agent"}:
+    if not isinstance(catalog, dict) or set(catalog) - set(CATEGORIES.values()):
         raise ValueError("invalid public catalog")
     for values in catalog.values():
         if not isinstance(values, list) or not all(is_public_label(value) for value in values):
@@ -56,7 +57,6 @@ def catalog_labels(path):
 
 
 def is_public_label(value):
-    import re
     return isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,119}", value) is not None
 
 

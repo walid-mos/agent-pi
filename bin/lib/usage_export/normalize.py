@@ -7,6 +7,7 @@ from .schema import TOKENS, VERSION, encode
 
 MAX_NUMBER = 9_007_199_254_740_991
 TOKEN_FIELDS = {kind: {"input": "in", "output": "out"}.get(kind, kind) for kind in TOKENS["properties"]}
+CATEGORIES = {"agent": "agent", "requested_model": "req", "served_model": "served", "provider": "provider"}
 KINDS = {"": "workload", "compact": "workload", "routing": "routing-overhead"}
 STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$")
 IDENTITY_FIELDS = ("t", "req", "model", "served", "provider", "agent", "session", "native_session",
@@ -87,10 +88,7 @@ def normalize(row, identity, database, zone, catalog):
         "source": "magpie-ledger", "source_ref": identity["source_ref"], "ts_utc": stamp,
         "report_day": instant(stamp).astimezone(zone).date().isoformat(),
         "kind": kind,
-        "agent": category(row, "agent", identity, database, catalog),
-        "requested_model": category(row, "req", identity, database, catalog),
-        "served_model": category(row, "served", identity, database, catalog),
-        "provider": category(row, "provider", identity, database, catalog),
+        **{field: category(row, source, identity, database, catalog) for field, source in CATEGORIES.items()},
         "session_ref": reference(row, "session", identity, database),
         "account_ref": reference(row, "providerAccount", identity, database)
                        or reference(row, "providerKeyId", identity, database),
