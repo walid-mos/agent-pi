@@ -3,9 +3,8 @@ import json
 import math
 
 from .normalize import MAX_NUMBER, TOKEN_FIELDS, numeric, opaque, text, timestamp, unknown_cost
-from .publish import file_digest
-from .scan import MAX_LINE_BYTES
 from .schema import encode
+from .storage import MAX_LINE_BYTES, file_digest
 
 CSV_FIELDS = {"t": "time", "req": "requested_model", "provider": "provider", "served": "served_model",
               "in": "input_tokens", "out": "output_tokens", "cache_read": "cache_read_tokens",
@@ -42,16 +41,16 @@ def bounded_lines(stream):
         yield line.decode("utf-8")
 
 
-def load_estimates(database, host, options):
+def load_estimates(database, host, run):
     database.execute("DELETE FROM estimates")
-    with options.estimates.open("rb") as stream:
+    with run.estimates.open("rb") as stream:
         reader = csv.DictReader(bounded_lines(stream))
         if not set(CSV_FIELDS.values()).union({"cost_usd"}) <= set(reader.fieldnames or []):
             raise ValueError("unsupported CSV header")
         for raw in reader:
             insert_estimate(database, host, raw)
-    return {"price_source": "magpie-csv-snapshot", "price_snapshot_at": timestamp(options.price_snapshot_at),
-            "snapshot_sha256": file_digest(options.estimates)}
+    return {"price_source": "magpie-csv-snapshot", "price_snapshot_at": run.price_snapshot_at,
+            "snapshot_sha256": file_digest(run.estimates)}
 
 
 def insert_estimate(database, host, raw):
@@ -68,7 +67,7 @@ def insert_estimate(database, host, raw):
 def revoke_ambiguous(database):
     candidates = database.execute("""SELECT id, day, event FROM events WHERE estimate_key IN (
         SELECT DISTINCT e.estimate_key FROM events e JOIN dirty d ON e.day=d.day
-        WHERE (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)>1)""")
+        WHERE (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)>1)""").fetchall()
     for identifier, day, encoded in candidates:
         event = json.loads(encoded)
         if event["cost"]["estimate_usd"] is None:
@@ -78,14 +77,14 @@ def revoke_ambiguous(database):
         database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
 
 
-def apply_estimates(database, host, options):
+def apply_estimates(database, host, run):
     revoke_ambiguous(database)
-    if options.estimates is None:
+    if run.estimates is None:
         return
-    provenance = load_estimates(database, host, options)
+    provenance = load_estimates(database, host, run)
     candidates = database.execute("""SELECT e.id, e.day, e.event, p.amount FROM events e
         JOIN estimates p ON e.estimate_key=p.key WHERE p.matches=1
-        AND (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)=1""")
+        AND (SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)=1""").fetchall()
     for identifier, day, encoded, amount in candidates:
         event = json.loads(encoded)
         if event["cost"]["estimate_usd"] is not None:

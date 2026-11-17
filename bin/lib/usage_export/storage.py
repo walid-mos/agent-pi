@@ -1,4 +1,5 @@
 import fcntl
+import hashlib
 import json
 import os
 import secrets
@@ -12,6 +13,7 @@ from .schema import encode
 
 PRIVATE_DIRECTORY = 0o700
 PRIVATE_FILE = 0o600
+MAX_LINE_BYTES = 1024 * 1024
 
 
 def private_directory(path):
@@ -77,6 +79,14 @@ def identity(database):
     return {**result, "salt": bytes.fromhex(result["salt"])}
 
 
+def read_json(path, limit):
+    with path.open("rb") as stream:
+        encoded = stream.read(limit + 1)
+    if len(encoded) > limit:
+        raise ValueError("file too large")
+    return json.loads(encoded)
+
+
 def sync_directory(path):
     descriptor = os.open(path, os.O_RDONLY)
     try:
@@ -85,14 +95,22 @@ def sync_directory(path):
         os.close(descriptor)
 
 
-def atomic_write(path, contents):
-    descriptor, pending = tempfile.mkstemp(prefix=".pending-", dir=path.parent)
+def file_digest(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def write_durably(directory, write, name_for):
+    descriptor, pending = tempfile.mkstemp(prefix=".pending-", dir=directory)
     try:
         with os.fdopen(descriptor, "wb") as stream:
-            stream.write(contents)
+            write(stream)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(pending, path)
-        sync_directory(path.parent)
+        digest = file_digest(Path(pending))
+        target = directory / name_for(digest)
+        os.replace(pending, target)
+        sync_directory(directory)
+        return target, digest
     finally:
         Path(pending).unlink(missing_ok=True)

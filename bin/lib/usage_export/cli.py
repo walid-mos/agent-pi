@@ -1,20 +1,20 @@
 import argparse
 import hashlib
-import json
+import re
 import sys
-from datetime import date, datetime, timezone
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .estimates import apply_estimates, estimate_key
-from .normalize import timestamp
-from .publish import publish
+from .estimates import apply_estimates
+from .normalize import CATEGORIES, timestamp
+from .publish import MAX_REPORT_DAYS, publish, read_manifest
 from .scan import scan_ledger
-from .schema import MANIFEST, SCHEMA, encode, validate
-from .storage import identity, private_directory, state_database
+from .schema import SCHEMA, encode
+from .storage import identity, read_json, state_database
 
 MAX_CONFIG_BYTES = 1024 * 1024
-MAX_REPORT_DAYS = 3660
 
 
 class Parser(argparse.ArgumentParser):
@@ -43,19 +43,11 @@ def parser():
     return root
 
 
-def read_config(path):
-    with path.open("rb") as stream:
-        encoded = stream.read(MAX_CONFIG_BYTES + 1)
-    if len(encoded) > MAX_CONFIG_BYTES:
-        raise ValueError("configuration too large")
-    return json.loads(encoded)
-
-
 def catalog_labels(path):
     if path is None:
         return {}
-    catalog = read_config(path)
-    if not isinstance(catalog, dict) or set(catalog) - {"req", "served", "provider", "agent"}:
+    catalog = read_json(path, MAX_CONFIG_BYTES)
+    if not isinstance(catalog, dict) or set(catalog) - set(CATEGORIES.values()):
         raise ValueError("invalid public catalog")
     for values in catalog.values():
         if not isinstance(values, list) or not all(is_public_label(value) for value in values):
@@ -64,17 +56,26 @@ def catalog_labels(path):
 
 
 def is_public_label(value):
-    import re
     return isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,119}", value) is not None
 
 
-def check_options(options):
-    options.now = timestamp(options.now)
+@dataclass(frozen=True)
+class Settings:
+    ledger: Path
+    state: Path
+    output: Path
+    days: tuple
+    zone: ZoneInfo
+    now: str
+    rescan: bool
+    catalog: dict
+    estimates: Path | None
+    price_snapshot_at: str | None
+
+
+def settings(options):
     if bool(options.estimates) != bool(options.price_snapshot_at):
         raise ValueError("estimate snapshot needs its timestamp")
-    if options.price_snapshot_at:
-        options.price_snapshot_at = timestamp(options.price_snapshot_at)
-    options.zone = ZoneInfo(options.timezone)
     first, last = date.fromisoformat(options.start), date.fromisoformat(options.through)
     if not 0 <= (last - first).days < MAX_REPORT_DAYS:
         raise ValueError("invalid date window")
@@ -85,31 +86,33 @@ def check_options(options):
     for source in (path.resolve() for path in sources if path is not None):
         if state in source.parents or output in source.parents or source in (state, output):
             raise ValueError("source must be separate")
-    return {"ledger": str(ledger), "output": str(output), "timezone": options.timezone}
+    return Settings(
+        ledger=ledger, state=state, output=output,
+        days=tuple((first + timedelta(days=offset)).isoformat() for offset in range((last - first).days + 1)),
+        zone=ZoneInfo(options.timezone), now=timestamp(options.now),
+        rescan=options.rescan, catalog=catalog_labels(options.catalog), estimates=options.estimates,
+        price_snapshot_at=timestamp(options.price_snapshot_at) if options.price_snapshot_at else None)
 
 
-def bind(database, binding, catalog):
-    signature = hashlib.sha256(encode({**binding, "catalog": catalog}).encode()).hexdigest()
+def bind(database, run):
+    binding = {"ledger": str(run.ledger), "output": str(run.output), "timezone": run.zone.key,
+               "catalog": run.catalog}
+    signature = hashlib.sha256(encode(binding).encode()).hexdigest()
     saved = database.execute("SELECT value FROM metadata WHERE key='binding'").fetchone()
     if saved and saved[0] != signature:
         raise ValueError("state belongs to a different source or configuration")
     database.execute("INSERT OR IGNORE INTO metadata VALUES ('binding', ?)", (signature,))
 
 
-def export_usage(options):
-    binding = check_options(options)
-    catalog = catalog_labels(options.catalog)
-    private_directory(options.state)
-    private_directory(options.output)
-    private_directory(options.output / "days")
-    with state_database(options.state) as database:
+def export_usage(run):
+    with state_database(run.state) as database:
         host = identity(database)
-        bind(database, binding, catalog)
-        options.estimate_key = lambda row: estimate_key(row, host)
-        scan = scan_ledger(database, host, options, catalog)
-        apply_estimates(database, host, options)
-        manifest = publish(database, host, options, scan)
-    return manifest
+        bind(database, run)
+        scan = scan_ledger(database, host, run)
+        apply_estimates(database, host, run)
+        manifest = publish(database, host, run, scan)
+    return {"schema_version": manifest["schema_version"], "host_uuid": manifest["host_uuid"],
+            "days": len(manifest["days"]), "read_bytes": scan.read_bytes, "scan": manifest["scan"]}
 
 
 def main():
@@ -119,13 +122,9 @@ def main():
             print(encode(SCHEMA))
             return 0
         if options.command == "coverage":
-            manifest = read_config(options.output / "manifest.json")
-            validate(manifest, MANIFEST)
-            print(encode(manifest))
+            print(encode(read_manifest(options.output)))
             return 0
-        manifest = export_usage(options)
-        print(encode({"schema_version": manifest["schema_version"], "host_uuid": manifest["host_uuid"],
-                      "days": len(manifest["days"]), "read_bytes": options.read_bytes, "scan": manifest["scan"]}))
+        print(encode(export_usage(settings(options))))
         return 0
     except (Exception, KeyboardInterrupt):
         print("usage-export: export failed. Check input format, private state, and output permissions. No source was changed.", file=sys.stderr)
