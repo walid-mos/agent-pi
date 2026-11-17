@@ -66,10 +66,13 @@ class ExportCase(unittest.TestCase):
             try:
                 stdout, stderr = process.communicate(timeout=30)
             finally:
-                if process.poll() is None:
-                    process.kill()
-                    process.wait()
+                self.stop(process)
             return subprocess.CompletedProcess(arguments, process.returncode, stdout, stderr)
+
+    def stop(self, process):
+        if process.poll() is None:
+            process.kill()
+        process.wait()
 
     def run_cli(self, *extra, expected=0):
         arguments = ["python3", "-B", str(CLI), "export", "--ledger", str(self.ledger),
@@ -80,8 +83,8 @@ class ExportCase(unittest.TestCase):
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         return result
 
-    def estimates(self, rows, name="estimates.csv", encoding="utf-8"):
-        path = self.fixture / name
+    def estimates(self, rows, name="estimates.csv", encoding="utf-8", directory=None):
+        path = (directory or self.fixture) / name
         with path.open("w", newline="", encoding=encoding) as stream:
             writer = csv.writer(stream)
             writer.writerow(ESTIMATE_HEADERS)

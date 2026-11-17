@@ -1,10 +1,9 @@
-import csv
 import gzip
 import json
 import subprocess
 import sys
 
-from support import CANARY, ESTIMATE_HEADERS, NOW, ROOT, ExportCase
+from support import CANARY, NOW, ROOT, ExportCase
 
 HOST_CLI = ROOT / "bin" / "usage-export-host"
 FAKE_MAGPIE = """#!{python}
@@ -41,8 +40,7 @@ class HostCase(ExportCase):
         return {"HOME": str(self.home), "PATH": str(self.bin), "TMPDIR": str(self.temporary)}
 
     def run_host(self, *arguments, now=NOW, expected=0):
-        clock = [] if arguments[:1] == ("candidates",) else ["--now", now]
-        result = self.invoke([sys.executable, "-B", str(HOST_CLI), *arguments, *clock], self.environment())
+        result = self.invoke([sys.executable, "-B", str(HOST_CLI), *arguments, "--now", now], self.environment())
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         return result
 
@@ -53,11 +51,6 @@ class HostCase(ExportCase):
         self.addCleanup(self.stop, process)
         return process
 
-    def stop(self, process):
-        if process.poll() is None:
-            process.kill()
-        process.wait()
-
     def receipt(self, *arguments, now=NOW, expected=0):
         return json.loads(self.run_host(*arguments, now=now, expected=expected).stdout)
 
@@ -67,10 +60,7 @@ class HostCase(ExportCase):
         executable = directory / "magpie"
         executable.write_text(FAKE_MAGPIE.format(python=sys.executable, canary=CANARY))
         executable.chmod(0o700)
-        with (directory / "magpie.csv").open("w", newline="") as stream:
-            writer = csv.writer(stream)
-            writer.writerow(ESTIMATE_HEADERS)
-            writer.writerows(self.csv_row(row) for row in rows)
+        self.estimates([self.csv_row(row) for row in rows], "magpie.csv", directory=directory)
         if is_failing:
             (directory / "magpie.fail").write_text("")
         return directory
