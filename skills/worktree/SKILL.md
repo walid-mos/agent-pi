@@ -71,4 +71,4 @@ It opens a tab beside the caller without moving focus, or reuses the tab already
 - `reused`: leave its processes alone; never start a second Pi.
 - Exit 2: the caller is outside the configured terminal. Keep the worktree and report its path.
 
-Report the branch, path, pull request, tab status, and Pi readiness, distinguishing creation from reuse. Install dependencies or start services only on request.
+Report the branch, path, pull request, tab status, and Pi readiness, distinguishing creation from reuse. Opening the tab installs no dependencies and starts no services: the task's own checks set up what they need (Local fixtures in `~/.pi/agent/AGENTS.md`).
