@@ -13,6 +13,7 @@ import { magpieProvidersPath, readMagpieGroups } from '#lib/magpie-groups.ts'
 import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 
 import type { Static } from 'typebox'
+import type { MagpieGroup } from '#lib/magpie-groups.ts'
 import type { RoutingRule, RoutingSpec } from './spec.ts'
 
 const PROVIDERS_PATH = magpieProvidersPath()
@@ -34,14 +35,13 @@ const StoredRuleSchema = Type.Object({
 	folders: Type.Optional(Type.Array(Type.String())),
 })
 const StoredGroupSchema = Type.Object({
-	members: Type.Array(Type.String()),
 	classifier: Type.Optional(Type.String()),
 	intentSure: Type.Optional(Type.Number()),
 	rules: Type.Optional(Type.Array(StoredRuleSchema)),
 })
 
 type StoredRule = Static<typeof StoredRuleSchema>
-type StoredGroup = Static<typeof StoredGroupSchema>
+type StoredGroup = MagpieGroup & Static<typeof StoredGroupSchema>
 type RuleShape = {
 	use: string
 	more: string[]
