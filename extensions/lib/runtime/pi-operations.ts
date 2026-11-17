@@ -1,5 +1,5 @@
 /** Pi tool operation sets backed by a Runtime: the Boat for anchored paths, used by tools/workspace and tools/guard. */
-import { quote } from './remote.ts'
+import { quote } from '#lib/shell-quote.ts'
 
 import type {
 	BashOperations,

@@ -5,7 +5,7 @@
  */
 import { basename, dirname } from 'node:path'
 
-import { quote } from '#lib/runtime/remote.ts'
+import { quote } from '#lib/shell-quote.ts'
 
 import type { createGrepToolDefinition } from '@earendil-works/pi-coding-agent'
 import type { Runtime } from '#lib/runtime/runtime.ts'

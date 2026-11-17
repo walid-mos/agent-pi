@@ -4,6 +4,8 @@
  */
 import { execFile, spawn, spawnSync } from 'node:child_process'
 
+import { quote } from '#lib/shell-quote.ts'
+
 const SSH = 'ssh'
 const MAX_BUFFER_BYTES = 67_108_864
 const STOP_GRACE_MS = 2000
@@ -35,10 +37,6 @@ export interface ExecOptions {
 	readonly onData: (data: Buffer) => void
 	readonly signal?: AbortSignal
 	readonly timeout?: number
-}
-
-export function quote(text: string): string {
-	return `'${text.replaceAll("'", `'\\''`)}'`
 }
 
 export function capture(

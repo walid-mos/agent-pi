@@ -1,4 +1,6 @@
 /** Save each named validation before filtering, without changing arbitrary shell policy. */
+import { quote } from '#lib/shell-quote.ts'
+
 import type { CommandEvidence } from '#lib/command-evidence/schema.ts'
 import type { ValidationCommand, ValidationStep } from './validation-steps.ts'
 
@@ -7,16 +9,12 @@ export type RecordedStep = ValidationStep & {
 	warning?: string
 }
 
-function shellQuote(path: string): string {
-	return `'${path.replaceAll("'", "'\\''")}'`
-}
-
 function loggedValidation(
 	command: ValidationCommand,
 	record: CommandEvidence,
 ): string {
-	const log = shellQuote(record.logPath)
-	const codes = shellQuote(`${record.receiptPath}.codes`)
+	const log = quote(record.logPath)
+	const codes = quote(`${record.receiptPath}.codes`)
 	if (!command.filters.length)
 		return `set -o pipefail\n( ${command.base} ) 2>&1 | tee ${log}\n__pi_exit=$? __pi_codes=("\${PIPESTATUS[@]}")\nprintf '%s\\n' "\${__pi_codes[@]}" > ${codes}\nexit "$__pi_exit"`
 	// Filtering the saved file after completion prevents head/SIGPIPE from truncating the suite.

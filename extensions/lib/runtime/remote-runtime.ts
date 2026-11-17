@@ -1,6 +1,8 @@
 /** The Runtime of a workspace anchor: every path and command runs on its Boat. */
+import { quote } from '#lib/shell-quote.ts'
+
 import { isWithin, targetFor, targetSync } from './anchor.ts'
-import { capture, captureSync, exec, quote } from './remote.ts'
+import { capture, captureSync, exec } from './remote.ts'
 
 import type { Anchor, WorkspaceTarget } from './anchor.ts'
 import type { CaptureResult, ExecOptions } from './remote.ts'

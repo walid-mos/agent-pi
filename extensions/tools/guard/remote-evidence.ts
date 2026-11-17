@@ -6,7 +6,7 @@ import { writeFile } from 'node:fs/promises'
  */
 import { basename, dirname, join } from 'node:path'
 
-import { quote } from '#lib/runtime/remote.ts'
+import { quote } from '#lib/shell-quote.ts'
 
 import { loggedSteps } from './validation-log.ts'
 
