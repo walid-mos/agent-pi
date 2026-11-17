@@ -18,7 +18,7 @@ Before a hand-off, run `scripts/cleanup '<caller-checkout>'` from the main check
 1. In the caller's checkout, batch current branch, `HEAD`, short status, and candidates from `git for-each-ref --format='%(refname:short)' refs/heads refs/remotes`. Exclude remote HEAD aliases, collapse local/tracking duplicates, and do not fetch. Save long output in an OS-temp file and read bounded portions. Uncommitted changes stay in the original checkout; mention them if present.
 2. Match the free text against branch names with judgment: ticket IDs, intent, wording, abbreviations, likely typos. Prefer exact ticket matches over generic word overlap. Inspect a shortlisted branch's recent commit subjects only when names are insufficient. Never invent matches. With no argument, skip matching and fork the current `HEAD`.
 3. If one or more plausible branches exist, ask once with the question tool (id `target_branch`): up to three candidates, the strongest recommended, plus "Create a new branch from current HEAD" and "Cancel". Ask even for an exact match. Mutate nothing while the answer is pending. Cancel stops the workflow. A confirmed branch uses its own tip, not the caller's `HEAD`.
-4. With no plausible match, or when the user chose creation, derive the name without another question: `<type>/<ticket-if-present>-<kebab-description>`, dropping the ticket segment when absent. Pick the dominant type (`feat`, `fix`, `chore`, `docs`, `refactor`, `test`); keep the ticket's spelling. Load repository branch conventions when they apply. With no text, derive the description from the current branch, using `worktree` for a detached `HEAD`. Append `-worktree-<YYYYMMDD-HHMMSS>` only on a name collision. Validate with `git check-ref-format --branch <name>`. Capture the caller's `HEAD` as the new branch's base; never switch to develop or pull.
+4. With no plausible match, or when the user chose creation, derive the name without another question. Follow the repository's branch rules (Repository Git conventions in `~/.pi/agent/AGENTS.md`); where it has none, use `<type>/<ticket-if-present>-<kebab-description>`, dropping the ticket segment when absent. Pick the dominant type (`feat`, `fix`, `chore`, `docs`, `refactor`, `test`); keep the ticket's spelling. With no text, derive the description from the current branch, using `worktree` for a detached `HEAD`. Append `-worktree-<YYYYMMDD-HHMMSS>` only on a name collision. Validate with `git check-ref-format --branch <name>`. Capture the caller's `HEAD` as the new branch's base; never switch to develop or pull.
 
 ## Place the worktree
 
@@ -43,9 +43,9 @@ Verify: `git -C <checkout> branch --show-current` names the branch, and its `HEA
 
 Once the checkout exists, created or reused, start `scripts/draft-pr '<checkout>' '<title>' [<base>]` as a background job and go on without waiting. Its completion prints the pull request URL; a failure goes into the report while the worktree stays usable.
 
-- **Title**: a Conventional Commit naming the task's single intention. It becomes the squash commit, so retitle the pull request when the intention changes.
+- **Title**: a commit subject in the repository's format (Repository Git conventions in `~/.pi/agent/AGENTS.md`) naming the task's single intention. It becomes the squash commit, so retitle the pull request when the intention changes.
 - **Base**: omit it for the repository's default branch; pass the caller's branch when the work stacks on it.
-- It pushes the branch, adding an empty `chore: start <branch>` commit when the branch has no commit of its own yet. Where a project `AGENTS.md` requires approval before a push, obtain it before starting the job.
+- It pushes the branch, adding an empty commit with the title as its message when the branch has no commit of its own yet. Commit and push hooks stay enabled; if their prerequisites are missing, report the failed command and complete the repository setup before retrying. Where a project `AGENTS.md` requires approval before a push, obtain it before starting the job.
 - A branch that already has an open pull request gets its URL back, never a second one.
 
 ## Clean up ended pull requests
