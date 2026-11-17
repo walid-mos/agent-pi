@@ -12,6 +12,7 @@ CSV_FIELDS = {"t": "time", "req": "requested_model", "provider": "provider", "se
               **{field: f"{kind}_tokens" for kind, field in TOKEN_FIELDS.items()},
               "ms": "duration_ms", "status": "status", "response_id": "response_id", "rid": "request_id",
               "kind": "kind"}
+CSV_HEADERS = (*CSV_FIELDS.values(), "cost_usd")
 NUMERIC_FIELDS = (*TOKEN_FIELDS.values(), "ms", "status")
 SIBLINGS = "(SELECT COUNT(*) FROM events sibling WHERE sibling.estimate_key=e.estimate_key)"
 PRICED = "json_extract(e.event, '$.cost.estimate_usd') IS NOT NULL"
@@ -66,11 +67,22 @@ def csv_rows(stream, digest=None):
                 digest.update(line)
             yield line.decode("utf-8-sig")
 
-    return csv.DictReader(lines())
+    reader = csv.DictReader(lines())
+    validate_csv_header(reader.fieldnames)
+    return reader
 
 
-def has_estimate_columns(fieldnames):
-    return set(CSV_FIELDS.values()).union({"cost_usd"}) <= set(fieldnames or [])
+def validate_csv_header(fieldnames):
+    actual = tuple(fieldnames or [])
+    if actual == CSV_HEADERS:
+        return
+    differences = [f"column {index + 1}: expected {column}"
+                   for index, column in enumerate(CSV_HEADERS)
+                   if index >= len(actual) or actual[index] != column]
+    if len(actual) > len(CSV_HEADERS):
+        differences.append(f"extra columns after column {len(CSV_HEADERS)}")
+    raise ExportInputError("CSV header differs (" + "; ".join(differences)
+                           + "). Supply the exact Magpie usage --csv all columns in order.")
 
 
 def load_estimates(database, host, run):
@@ -78,8 +90,6 @@ def load_estimates(database, host, run):
     digest = hashlib.sha256()
     with run.estimates.open("rb") as stream:
         reader = csv_rows(stream, digest)
-        if not has_estimate_columns(reader.fieldnames):
-            raise ValueError("unsupported CSV header")
         for raw in reader:
             insert_estimate(database, host, raw)
     return {"price_source": "magpie-csv-snapshot", "price_snapshot_at": run.price_snapshot_at,

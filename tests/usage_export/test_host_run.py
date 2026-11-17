@@ -71,13 +71,16 @@ class HostRunTests(HostCase):
         self.assertEqual(process.returncode, 128 + signal.SIGTERM)
         self.assertEqual(list(self.temporary.iterdir()), [])
 
-    def test_a_magpie_csv_without_the_estimate_columns_is_treated_as_failed(self):
+    def test_a_magpie_csv_without_the_estimate_columns_refuses_the_export(self):
         self.append(self.row())
         directory = self.install_magpie([self.row()])
-        (directory / "magpie.csv").write_text("time,requested_model\n2026-11-17 09:00:00,group/router\n")
-        receipt = self.receipt()
-        self.assertEqual((receipt["snapshot"], receipt["estimates_applied"]), ("magpie-failed", False))
-        self.assertIsNone(self.events()[0]["cost"]["estimate_usd"])
+        (directory / "magpie.csv").write_text("time,requested_model\n2026-11-17 09:00:00Z,group/router\n")
+        result = self.run_host(expected=1)
+        receipt = json.loads(result.stdout)
+        self.assertEqual((receipt["snapshot"], receipt["estimates_applied"], receipt["export"]), ("taken", False, None))
+        self.assertIn("CSV header differs", result.stderr)
+        self.assertIn("provider", result.stderr)
+        self.assertFalse((self.output / "manifest.json").exists())
         self.assertEqual(list(self.temporary.iterdir()), [])
 
     def test_a_failed_export_prints_its_receipt_and_removes_the_snapshot(self):
