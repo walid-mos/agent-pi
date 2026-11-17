@@ -34,8 +34,7 @@ const MS_PER_SECOND = 1_000
 /** Header lines a scrolling tab draws above its window. */
 const TAB_HEADER_ROWS = 1
 
-function cooldownText(input: RenderInput, reference: string): string {
-	const until = input.view.cooldowns.get(reference) ?? 0
+function cooldownText(input: RenderInput, until: number): string {
 	const seconds = Math.ceil((until - input.view.now) / MS_PER_SECOND)
 	if (seconds <= 0) return ''
 	if (seconds < SECONDS_PER_MINUTE)
@@ -74,7 +73,7 @@ function fallbackRowLine(
 	return {
 		text: twoColumn(
 			`${INDENT}${marker} ${uiTheme.fg('muted', String(row.index + 1))} ${uiTheme.fg('text', index === input.state.cursor ? uiTheme.bold(row.reference) : row.reference)}`,
-			cooldownText(input, row.reference),
+			cooldownText(input, row.cooldownUntil),
 			input.size.width,
 		),
 		pick: index,

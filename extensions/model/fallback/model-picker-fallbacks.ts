@@ -28,7 +28,7 @@ export type FallbackRow =
 			kind: 'chain'
 			index: number
 			reference: string
-			isCoolingDown: boolean
+			cooldownUntil: number
 	  }
 	| { kind: 'candidate'; reference: string }
 
@@ -38,10 +38,6 @@ const TOGGLE_LABELS: Record<ToggleField, string> = {
 	fastFailover: 'retry transient failures before failing over',
 }
 
-function isCoolingDown(view: PickerView, reference: string): boolean {
-	return (view.cooldowns.get(reference) ?? 0) > view.now
-}
-
 /**
  * Toggles last, behind a rule: a mixed fallbacks list is its model rows first
  * (the chain in failover order, then the in-scope models a user can append)
@@ -49,18 +45,21 @@ function isCoolingDown(view: PickerView, reference: string): boolean {
  * failover order - and a model never appears twice.
  */
 export function fallbackRows(view: PickerView): FallbackRow[] {
+	const references = view.config.chain.map(
+		reference => view.fallbackReferences.get(reference) ?? reference,
+	)
 	const chain = view.config.chain.map((reference, index): FallbackRow => ({
 		kind: 'chain',
 		index,
 		reference,
-		isCoolingDown: isCoolingDown(view, reference),
+		cooldownUntil: view.cooldowns.get(references[index] ?? reference) ?? 0,
 	}))
 	const candidates = view.rows
 		.filter(
 			row =>
 				row.isInScope &&
 				row.reference !== view.currentReference &&
-				!view.config.chain.includes(row.reference),
+				!references.includes(row.reference),
 		)
 		.map((row): FallbackRow => ({
 			kind: 'candidate',
