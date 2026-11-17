@@ -16,9 +16,9 @@ Open with one line: these are the rules for changing the repository, for people 
 2. **Architecture rules.** Each is a bold rule followed by why it holds: dependency direction, where IO happens, where composition happens, how failures cross boundaries, who owns options, how external calls are bounded.
 3. **Code rules.** Write down the conventions no tool enforces. For the ones a tool does enforce, point to the config file that sets them. Take every rule from the project's configs, its consistent practice or what the user stated. Never invent one.
 4. **Checks.** The commands every commit must pass.
-5. **Commits.** Granularity and format. Also how to check one commit alone when the project requires each commit to build on its own.
+5. **Commits.** Granularity and format, pointing to the commit-message config when one exists. Also how to check one commit alone when the project requires each commit to build on its own.
 6. **Documentation.** The stateless gate, applied to this repository, followed by the contradiction rule below, word for word.
-7. **Working against real systems.** Name what costs money or changes shared state. Say that it needs the user's go-ahead first, and a cleanup afterwards.
+7. **Working against real systems.** Name what costs money or changes shared state. Say that it needs the user's go-ahead first, and a cleanup afterwards. For isolated local test resources, name the commands that create and remove them, and link `~/.pi/agent/AGENTS.md` section Local fixtures in place of a go-ahead.
 8. **Extending.** How to add a plugin, adapter or module, with each step described by role.
 
 The contradiction rule:

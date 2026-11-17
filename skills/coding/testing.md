@@ -63,6 +63,7 @@ Never mock: the unit under test, internal collaborators that are not at a bounda
 ## Determinism
 
 - Inject clock and randomness; rebuild fixtures per test; assume nothing about execution order or parallelism.
+- Setup code that provisions a database, a port or a service follows Local fixtures in `~/.pi/agent/AGENTS.md`.
 - Fix a flaky test's cause - never retry-until-green, loosen tolerance thresholds, or mark `skip`.
 - No `sleep`: await the completion signals the design exposes (promise, callback, queue drain). If none exist, the design hides its synchronization - surface that, do not paper over it.
 

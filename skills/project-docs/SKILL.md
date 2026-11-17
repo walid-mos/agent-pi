@@ -42,7 +42,7 @@ Two kinds of concrete detail stay, because they are contracts or live nowhere el
    - Fix every error it reports.
    - Judge every stale candidate against the gate. Remove it, unless it is a kept contract or convention.
    - Check every factual claim against the code. Take example output from a real run.
-6. **Commit** the docs as `docs:` commits, one intention each.
+6. **Commit** the docs one intention per commit, as documentation commits in the repository's format (Repository Git conventions in `~/.pi/agent/AGENTS.md`).
 
 ## Done when
 
