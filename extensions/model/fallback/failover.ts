@@ -15,9 +15,9 @@
 
 import { FALLBACK_STATUS_KEY as STATUS_KEY } from '#lib/model-fallback/status.ts'
 
-import { modelReference, parseModelReference } from './chain.ts'
+import { modelReference } from './chain.ts'
 import { continuationAfterFailover } from './fallback-message.ts'
-import { resolveFallbackChain } from './targets.ts'
+import { findChainModel, resolveFallbackChain } from './targets.ts'
 
 import type {
 	BoundaryResult,
@@ -25,10 +25,6 @@ import type {
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
 import type { FallbackSession, FailureSighting } from './fallback-session.ts'
-
-type RegistryModel = NonNullable<
-	ReturnType<ExtensionContext['modelRegistry']['find']>
->
 
 /** The session's model as a chain reference (`provider/modelId`). */
 export function currentModelReference(
@@ -45,15 +41,6 @@ export function endFallback(
 ): void {
 	session.clearFallback()
 	ctx.ui.setStatus(STATUS_KEY, undefined)
-}
-
-function findModel(
-	ctx: ExtensionContext,
-	reference: string,
-): RegistryModel | undefined {
-	const parsed = parseModelReference(reference)
-	if (!parsed) return undefined
-	return ctx.modelRegistry.find(parsed.provider, parsed.modelId)
 }
 
 /** Announces a switch the user has to know about: it changed their provider. */
@@ -76,7 +63,7 @@ async function returnToOriginal(
 	session: FallbackSession,
 	reference: string,
 ): Promise<boolean> {
-	const model = findModel(ctx, reference)
+	const model = findChainModel(ctx.modelRegistry, reference)
 	if (!model) {
 		endFallback(ctx, session)
 		return false
