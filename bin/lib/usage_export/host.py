@@ -44,17 +44,15 @@ def export_fields(layout, now, snapshot):
 def reconciled_days(layout, receipt, snapshot, now):
     if receipt is None or snapshot is None:
         return []
-    try:
-        return reconcile(read_manifest(layout.output), snapshot, now)
-    except Exception:
-        return None
+    return reconcile(read_manifest(layout.output), snapshot, now)
 
 
 def run(layout, now):
     with price_snapshot(layout.magpie) as snapshot:
         receipt, failure = attempt_export(export_fields(layout, now, snapshot.path))
-        days = reconciled_days(layout, receipt, snapshot.path, now)
-        if days is None:
+        try:
+            days = reconciled_days(layout, receipt, snapshot.path, now)
+        except Exception:
             days, failure = [], failure or RECONCILE_FAILED
     print(encode({"export": receipt, "snapshot": snapshot.status, "reconcile": days,
                   "estimates_applied": receipt is not None and snapshot.path is not None}))
