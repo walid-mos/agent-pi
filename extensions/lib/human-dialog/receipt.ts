@@ -62,7 +62,6 @@ export function checkedReceipt(
 	}
 	if (raw.result) receipt.result = raw.result
 	if (raw.delivery) receipt.delivery = { id: raw.delivery.id }
-	if (raw.isWriting) receipt.isWriting = true
 	return receipt
 }
 

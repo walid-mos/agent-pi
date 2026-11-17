@@ -96,7 +96,6 @@ export const BrokerReceiptSchema = Type.Object({
 	]),
 	result: Type.Optional(BrokerResultSchema),
 	delivery: Type.Optional(Type.Object({ id: Text })),
-	isWriting: Type.Optional(Type.Boolean()),
 })
 
 export type BrokerAnswer = Static<typeof BrokerAnswerSchema>
@@ -118,7 +117,7 @@ export type BrokerQuestion = {
 	multiple: boolean
 	options: { label: string; detail: string; recommended: boolean }[]
 }
-export type BrokerBrowserTarget = {
+type BrokerBrowserTarget = {
 	destination: 'browser'
 	origin: string
 	socket: string
