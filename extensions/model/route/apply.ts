@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { chmodSync, copyFileSync } from 'node:fs'
-import { homedir, hostname } from 'node:os'
+import { hostname } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -9,12 +9,13 @@ import { Value } from 'typebox/value'
 
 import { readCheckedJson } from '#lib/checked-json.ts'
 import { errorText } from '#lib/error-text.ts'
+import { magpieProvidersPath } from '#lib/magpie-codex.ts'
 import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 
 import type { Static } from 'typebox'
 import type { RoutingRule, RoutingSpec } from './spec.ts'
 
-const PROVIDERS_PATH = join(homedir(), '.config', 'magpie', 'providers.json')
+const PROVIDERS_PATH = magpieProvidersPath()
 /** providers.json holds provider keys: its backup stays owner-only. */
 const BACKUP_MODE = 0o600
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1'])
