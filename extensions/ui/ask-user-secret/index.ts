@@ -11,7 +11,10 @@ import { Text } from '@earendil-works/pi-tui'
 
 import { contentText } from '#lib/content-text.ts'
 import { configuredBroker } from '#lib/human-dialog/config.ts'
-import { TranscriptComponent } from '#lib/ui/transcript-component.ts'
+import {
+	markAnswered,
+	TranscriptComponent,
+} from '#lib/ui/transcript-component.ts'
 
 import { brokerSecret } from './broker-secret.ts'
 import { writeSecret } from './infisical-write.ts'
@@ -31,12 +34,9 @@ import type {
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
 import type { BrokerFactory } from '#lib/human-dialog/config.ts'
+import type { PendingRowState } from '#lib/ui/transcript-component.ts'
 import type { SecretRequest } from './request.ts'
 import type { SecretParamsType, SecretResult } from './schema.ts'
-
-interface RowState {
-	answered?: boolean
-}
 
 const MS_PER_SECOND = 1000
 
@@ -44,7 +44,7 @@ const TOOL_DESCRIPTION =
 	'Ask the human for a secret (password, token, one-time code, API key) through a masked local dialog that never echoes, logs or returns the value. Use it whenever a flow needs a value the human holds; never ask for a secret in chat and never accept one typed there. destination=browser parks the value under a one-time handle bound to the exact origin you pass (the current page origin, scheme://host[:port]); pass that handle as `secret` on a frontend_batch type step within 3 minutes, and only that origin can consume it. destination=infisical writes the value to the given project/environment/path/name through the vault script and returns the key name only; an existing name needs replace=true. Describe in purpose what the value unlocks, in product terms, so the human knows what to type. Supports the interactive terminal and, in an explicitly configured pot, its private masked page. If the human cancels, stop that flow and say so.'
 
 export default function askUserSecret(pi: ExtensionAPI): void {
-	pi.registerTool<typeof SecretParams, SecretResult, RowState>({
+	pi.registerTool<typeof SecretParams, SecretResult, PendingRowState>({
 		name: 'ask_user_secret',
 		label: 'Ask User Secret',
 		description: TOOL_DESCRIPTION,
@@ -64,12 +64,7 @@ export default function askUserSecret(pi: ExtensionAPI): void {
 			)
 		},
 		renderResult(toolResult, _options, _theme, context) {
-			if (!context.state.answered) {
-				// oxlint-disable-next-line eslint/no-param-reassign - Pi owns this mutable cross-slot state channel
-				context.state.answered = true
-				// Do not reenter Pi's in-flight display update synchronously.
-				queueMicrotask(() => context.invalidate())
-			}
+			markAnswered(context)
 			const details = parseSecretResult(toolResult.details)
 			if (details)
 				return new TranscriptComponent(width =>

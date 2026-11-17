@@ -11,7 +11,10 @@ import {
 	configuredBroker,
 	registerBrokerFlags,
 } from '#lib/human-dialog/config.ts'
-import { TranscriptComponent } from '#lib/ui/transcript-component.ts'
+import {
+	markAnswered,
+	TranscriptComponent,
+} from '#lib/ui/transcript-component.ts'
 
 import { brokerQuestionnaire } from './broker-questionnaire.ts'
 import { QuestionnaireCaptures } from './questionnaire-captures.ts'
@@ -42,6 +45,7 @@ import type {
 import type { Static } from 'typebox'
 import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type { BrokerFactory } from '#lib/human-dialog/config.ts'
+import type { PendingRowState } from '#lib/ui/transcript-component.ts'
 import type { QuestionnaireMode } from './questionnaire-events.ts'
 import type {
 	AskResult,
@@ -52,10 +56,6 @@ interface AskSession {
 	resumeStates: Map<string, QuestionnaireInitialState>
 	sendFollowUp(message: string): void
 	setMode(mode: QuestionnaireMode): void
-}
-
-interface AskRowState {
-	answered?: boolean
 }
 
 const TOOL_DESCRIPTION =
@@ -75,7 +75,7 @@ export default function askUserQuestion(pi: ExtensionAPI): void {
 		)
 	})
 	pi.on('session_shutdown', () => session.resumeStates.clear())
-	pi.registerTool<typeof AskParams, AskResult | undefined, AskRowState>({
+	pi.registerTool<typeof AskParams, AskResult | undefined, PendingRowState>({
 		name: 'ask_user_question',
 		label: 'Ask User Question',
 		description: TOOL_DESCRIPTION,
@@ -95,12 +95,7 @@ export default function askUserQuestion(pi: ExtensionAPI): void {
 			)
 		},
 		renderResult(toolResult, _options, theme, context) {
-			if (!context.state.answered) {
-				// oxlint-disable-next-line eslint/no-param-reassign - Pi owns this mutable cross-slot state channel
-				context.state.answered = true
-				// Do not reenter Pi's in-flight display update synchronously.
-				queueMicrotask(() => context.invalidate())
-			}
+			markAnswered(context)
 			// Replayed details round-trip through the session file and may predate
 			// the current schema: parse before rendering, else fall back to text.
 			const details = parseAskResult(toolResult.details)
