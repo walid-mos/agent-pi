@@ -1,5 +1,4 @@
-/** Stateless transcript renderer: no cached output, each render uses the current viewport.
- * A pending call row shows until its result row marks the shared row state answered. */
+/** Stateless transcript renderer: no cached output, each render uses the current viewport. */
 import type { Component } from '@earendil-works/pi-tui'
 
 export interface PendingRowState {
