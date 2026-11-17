@@ -1,68 +1,41 @@
 ---
 name: boat
-description: |
-  Operate Boat cloud sandboxes with the boat CLI — create (ALWAYS --type small, the operator sizing rule), stop/resume/fork, ssh/exec, environments, and reading capacity/cost from the API (boat limits --json, boat usage). Load for any Boat sandbox task: sizing a machine, creating or resuming one, checking limits or credit balance, cost estimation, GitHub access in sandboxes, or troubleshooting the sandbox lifecycle. Also load when a plan file mentions Boat sandboxes.
+description: >-
+  Run jobs too heavy for a pot on Boat through workspace, with runtime Infisical injection and collected results. Load for full E2E suites, large builds, Boat account setup, sizing, cost estimates, sandbox lifecycle or troubleshooting. Read the private client recipe when the job needs client services or credentials.
 ---
 
-# Boat sandboxes
+# Boat
 
-Boat runs disposable Linux VMs ("sandboxes") on remote bare metal. CLI: `boat` at
-`~/.ascii/bin/boat` (ensure it is on PATH). Add `--no-update` to any command to skip the
-update check; update manually with `boat self-update`. Docs index: https://docs.boat.dev/llms.txt
-(pricing, machines, cli-reference). Re-check the docs when numbers here might have drifted.
+Run heavy repository jobs with `workspace job`. Use `--boat-type small` and an explicit `--boat-ttl` on every job. Read `workspace job --help` for flags and collection limits. Interactive development belongs to `~/.pi/agent/skills/worktree/cloud.md`.
 
-## Sizing rule — operator decision 2026-09-27
+## Before a job
 
-ALWAYS create with `--type small`. NEVER run `boat new` without `--type`: the CLI default is
-`default`, which costs twice as much. Never pass a larger type unless the user explicitly asks.
+1. Check `boat --no-update status --json` for `account.signedIn`. For a missing pot installation or expired key, follow [pot-setup.md](pot-setup.md). A Mac uses `boat login` if its operator has not signed in.
+2. Read `boat --no-update limits --json` for available types, starts, concurrency and billing restrictions. Read current sizes and prices from https://docs.boat.dev/machines.md and https://docs.boat.dev/pricing.md. The docs index is https://docs.boat.dev/llms.txt. Keep those facts there.
+3. Obtain spending approval for the number of small VMs, TTL, maximum charge, purpose and cleanup before starting them. Compute the ceiling as VM count × TTL in hours × the current small hourly price, plus any start surcharge reported by limits. A budget estimate grants no approval. Keep concurrency within both the approval and the live limits.
+4. Split dependency installation into `--setup`. Inject only the command's named variables with `--env NAME` after setup succeeds. Load `~/.pi/agent/skills/infisical/SKILL.md` before obtaining project secrets. Read the client's recipe for its project, allowed names and local services.
 
-| type    | $/h    | vCPU | RAM   | disk  | notes                          |
-| ------- | ------ | ---- | ----- | ----- | ------------------------------ |
-| small   | 0.018  | 2    | 4 GB  | 12 GB | the only size to use by default |
-| default | 0.036  | 4    | 8 GB  | 50 GB | CLI default — costs 2x small   |
-| large   | 0.072  | 8    | 16 GB | 125 GB | only on explicit user request |
-| xlarge  | 0.200  | 16   | 32 GB | 251 GB | $100+ plan + operator allocation |
+## Run a job
 
-Resizing happens on resume/fork: `boat resume <id> --type default` (growing always works;
-shrinking fails with `type_too_small` if the data no longer fits, leaving the sandbox untouched).
+From the repository checkout, give setup and command scripts to workspace. `--push` uploads tracked and unignored files without Git history or a GitHub token. Inspect this selection for credentials before upload. Keep `.env`, credentials and generated output ignored.
 
-## Read capacity from the API before batch work
+```bash
+workspace job --push . --boat-type small --boat-ttl 20m \
+  --setup /absolute/path/install-dependencies.sh \
+  --command 'pnpm test' --artifact reports
+```
 
-`boat limits --json` is the source of truth. Decisions it answers:
+Use an artifact path that the command actually creates, or omit `--artifact` for logs only. Workspace prints the result directory and returns the remote command's exit status. Inspect its setup log, command log, status files and artifact archive even when the exit is nonzero. Artifacts are unmodified command output. Select only intended reports and inspect them before publishing.
 
-- `canStart` / `blockedReason` / `billingStatus` — can we create anything at all.
-- `activeSandboxes` vs `maxActiveSandboxes` — concurrency headroom.
-- `starts.day/hour/minute` (`limit` vs `remaining`) — creation-rate headroom.
-- `creditBalanceHours` / `subscriptionRemainingSeconds` — the wallet, expressed in **seconds of
-  `default` time** (100,000 s per dollar). A `small` sandbox draws 0.5 per second, so
-  **1 balance-hour = 2 small-sandbox-hours**; halve the price, double the runtime.
-- `trialLine` (when present) — one-line summary of current trial caps; obey it, do not hardcode caps.
+The caller trusts its setup and command as it does when running that repository locally. Workspace sends selected values on SSH stdin and masks their exact bytes in collected logs. This does not isolate hostile same-user processes, prevent deliberate encoded disclosure or sanitize artifacts. Do not upload a production credential to an untrusted checkout. For stronger client isolation, follow the private recipe rather than claiming this generic job provides it.
 
-`boat status --json` → login/plan health. `boat usage <id>` → one sandbox's real cost.
-`boat billing` → wallet, packs, auto-refill.
+## Finish
 
-## Command map
+Read [operations.md](operations.md) for cleanup, recovery and cost evidence before ending a job. Report the VM id, source revision, command exit, log/artifact locations, actual charge and confirmed stopped or deleted state. Preserve a failed VM only as workspace documents, and stop it immediately while investigating so that its TTL is not the cleanup plan.
 
-- Create: `boat new --type small --ttl <SECONDS>` (auto-stop timer; restarts on every resume)
-- Observe: `boat list --json` · `boat info <id> --json` (watch `state`: provisioning → ready/idle/running → stopping → stopped)
-- Shell: `boat ssh <id>` (interactive) · `boat ssh <id> -- bash -c '…'` (one-shot; needs the sandbox **ID**, not its display name)
-- No-SSH exec: `boat exec <id> -- <cmd>` (runs over the Boat API; background + poll for long work)
-- Lifecycle: `boat stop <id>` (snapshot, then free) · `boat resume <id>` · `boat fork <id>`
-- Files: `boat scp` · environment secret files (below)
-- Expose: `boat host` (public HTTPS URL) · `boat forward` (TCP to local machine)
-- Environments: `boat env list|info|set|set-var|set-file|add-repo|upgrade` — repos, env vars,
-  secret files, safety toggles; every change mints a new version, running sandboxes stay pinned
-  until `boat env upgrade <env>`
-- Onboarding links (dashboard URLs): `boat onboard --json` is safe to re-run when signed in
+For a full Playwright suite, read the private client's measurement recipe before choosing shard count. A small VM can be slower than the HP. Choose shard count and workers from measured peak memory, CPU, wall time and the approved charge ceiling. Give every shard its own database and storage, collect blob reports, then merge them.
 
-## Auth
+## References
 
-Signed in via GitHub. If `boat status --json` reports `loginState: "signed out"`: run
-`boat onboard --json`, have the user open the `url` it prints and complete OAuth, then re-run
-`boat onboard --json` until the event is `login_complete`. Do not fabricate a signed-in state.
-
-## Load on demand
-
-- `operations.md` — stop/resume mechanics, what survives a resume, in-sandbox facts, GitHub
-  private-clone setup, Tailscale. Load before driving a sandbox beyond a one-shot command, or
-  when provisioning repos/secrets into an environment.
+- [pot-setup.md](pot-setup.md): install CLIs and grant or renew each pot's access.
+- [operations.md](operations.md): stop, recover, inspect usage, snapshots and remote access.

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WORKSPACE_REPOSITORY=https://github.com/NextNodeSolutions/workspace
+WORKSPACE_PACKAGE=workspace
+BOAT_DOWNLOAD='https://boat.dev/api/boat/cli/download?channel=prod&platform='
+BUILD_IMAGE=rust:1-slim
+BUILD_CPUS=2
+
+fail() { echo "install: $1" >&2; exit 1; }
+
+[[ $(uname -s) == Linux ]] || fail "this installs the CLIs on a Linux pot; on a Mac, build workspace from its checkout as its README says"
+case $(uname -m) in
+x86_64) platform=linux-x64 ;;
+aarch64) platform=linux-arm64 ;;
+*) fail "no Boat CLI build for $(uname -m)" ;;
+esac
+ref=main
+if [[ $# -eq 2 && $1 == --ref ]]; then
+	ref=$2
+elif [[ $# -ne 0 ]]; then
+	fail "usage: install [--ref WORKSPACE_BRANCH]"
+fi
+command -v docker >/dev/null || fail "docker is missing: the workspace build runs in a $BUILD_IMAGE container"
+
+bin="$HOME/.local/bin"
+staging=$(mktemp -d)
+trap 'rm -rf "$staging"' EXIT
+
+curl -fsSL "$BOAT_DOWNLOAD$platform" -o "$staging/boat"
+chmod 755 "$staging/boat"
+docker run --rm --cpus "$BUILD_CPUS" --user "$(id -u):$(id -g)" \
+	-e HOME=/tmp -e CARGO_HOME=/tmp/cargo -v "$staging:/out" "$BUILD_IMAGE" \
+	cargo install --locked --quiet --root /out --git "$WORKSPACE_REPOSITORY" --branch "$ref" "$WORKSPACE_PACKAGE"
+
+mkdir -p "$bin"
+mv "$staging/boat" "$bin/boat"
+mv "$staging/bin/workspace" "$bin/workspace"
+echo "install: $("$bin/boat" --no-update --version) and workspace from $WORKSPACE_REPOSITORY@$ref are in $bin"

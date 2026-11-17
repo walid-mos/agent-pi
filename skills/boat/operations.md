@@ -1,70 +1,33 @@
-# Boat operations — lifecycle mechanics and proven environment facts
+# Boat operations
 
-Extends the "Command map" and "Auth" sections of `SKILL.md`; the core rules are not restated here.
-Facts marked *observed* were verified live on a `default` baremetal sandbox (2026-09-27);
-re-verify before relying on them.
+Extends "Finish" in `SKILL.md`. Workspace owns job creation and result collection. Use the provider CLI for inspection and recovery when the workspace record is unavailable.
 
-## Stop / resume mechanics (observed)
+## Cleanup and cost
 
-- `boat stop <id>`: state `stopping` → `stopped`, snapshot `in_progress` → `completed`, ~4 min.
-  Billed nothing while stopped. `boat info --json` nests under `sandbox` (not top level).
-- `boat resume <id>`: ready in < 1 min, lands in state `idle`/`ready`, gets a **new internal IP**,
-  and `archiveAfter` re-arms — the TTL clock restarts on every resume.
-- What returns after resume: systemd (unit states intact — `docker.service` came back active),
-  files on the disk, installed packages. What does NOT return: hand-run processes (a `nohup sleep`
-  was gone). Anything that must survive a stop/resume cycle is a systemd unit — the sandbox has
-  passwordless sudo, so write `/etc/systemd/system/<name>.service` and `systemctl enable --now` it.
-- SSH (observed 2026-10-07): plain `ssh -p <port> user@<host>` (endpoint from `sshEndpoint`) is refused
-  until `boat ssh <id>` has run once on that sandbox — it installs `~/.ssh/ascii_box_ed25519.pub`. The
-  host key changes on every resume; `boat ssh` refreshes it in
-  `~/.ssh/ascii_sandbox_known_hosts/<sha256(id)[:24]>` under alias `ascii-sandbox-<same>`, which plain
-  ssh can verify strictly (`HostKeyAlias` + `UserKnownHostsFile`).
-- Fork inherits the source's type unless `--type` says otherwise; snapshots can be named
-  (`boat snapshot <id> <name>`) and sandboxed from (`boat new --from <name>`).
+Capture the VM id printed by workspace. For a recorded named job, `workspace stop NAME` stops it and `workspace remove NAME` deletes it. A disposable job is deleted after successful collection unless `--keep` is explicit. A failed setup, transfer or collection can leave the VM running for inspection. Stop it before inspecting.
 
-## Inside the sandbox (observed on the current image)
+```bash
+boat --no-update stop ID --json
+boat --no-update info ID --json
+boat --no-update usage ID --json
+```
 
-- Ubuntu 24.04 LTS, x86_64, kernel-level TUN available (`/dev/net/tun` exists — KVM may or may
-  not exist depending on the host; `ls /dev/kvm` to check).
-- Login user is `user` (uid 1000, in the `docker` group, passwordless sudo). `/root` is not
-  readable; work in `/home/user`. Disk: `/dev/vda1` (12 GB usable on `small`).
-- Preinstalled: Node 24 + npm + corepack + pnpm, git, gh, jq, rg, Docker + Compose (daemon runs
-  on boot), Chrome, ffmpeg, and agent harnesses (`pi`, `claude`, `codex`, … — each signs in with
-  its own `login` command; Boat's preinstalled Pi may lack local extensions/skills).
-- First `boat ssh` run mints `~/.ssh/ascii_box_ed25519` on the local machine and registers it.
-- Registry pulls work; egress is open. `python3 -m http.server` etc. available for quick probes.
+Confirm the returned sandbox state has stopped. Save the usage response beside the result directory. If stopping fails, report the exact command, VM id, deadline and error, then retry within the approved scope. The provider's TTL remains the backstop after caller failure.
 
-## GitHub private clones
+When the workspace ledger could not save a new VM, cleanup by id through Boat:
 
-- Boat's GitHub integration installs a Boat GitHub App on the repositories' owner, which needs
-  admin rights on that organization. Turn it off per environment with
-  `boat env set <env> --github false`.
-- Without the app: export a `GITHUB_TOKEN` with read access on the sandbox and run
-  `gh auth setup-git`, so Git clones over HTTPS with that token. No SSH key reaches the sandbox.
-- An org that enforces SAML SSO: HTTPS clone + classic PAT (one "Enable SSO" click, user-level)
-  or Git Credential Manager with the browser session. No admin needed either way.
-- Repos cannot be selected via CLI (`env add-repo` needs a Boat-connected repo) — dashboard-only,
-  and moot while the integration is off.
+```bash
+boat --no-update delete ID --yes --json
+```
 
-## Tailscale on a sandbox (observed 2026-11-11 on `small`)
+Deletion discards that VM's data. Collect results and usage before deletion when recovering manually. Check `boat --no-update list --all --json` for resources owned by this task and leave other tasks' VMs alone.
 
-- Joining a sandbox to the tailnet belongs to `~/.pi/agent/skills/tailnet-links/SKILL.md`, section
-  "A new machine or VM". Never enrol a sandbox by hand. Only what Boat adds is below.
-- Tailscale is not preinstalled, so the first join installs it and took 100 s. A later join took
-  30 to 50 s. `tailscaled` runs as a systemd service.
-- The device takes the sandbox hostname, `box-node-<id>`.
-- A stop and resume kept the device and its node: file links and previews answered again at the
-  same URLs with no new join. The sandbox came back with its processes still running and its boot
-  time unchanged, unlike the 2026-09-27 observation above.
-- Once the tailnet has dropped the device, the next join returns it under the same name, so file
-  links keep their URLs. Its previews are no longer listed: that skill's section "When a link does
-  not open" has the fix. Observed by deleting the device through the Tailscale API and by `tailscale logout` on the
-  sandbox, not by waiting for the tailnet to drop a stopped one.
-- `localhost:47990` belongs to the image's `sunshine` service. Start test servers on another port.
+A stopped sandbox's disk can contain runtime credentials and test output. Delete it when its results are collected. Store only a credential-free toolchain in a saved snapshot. Read https://docs.boat.dev/snapshots.md and https://docs.boat.dev/data-retention.md for current retention and stop/resume behavior.
 
-## Cost reality checks
+## Access and environment
 
-- `boat usage <id>` gives the per-sandbox bill with the size multiplier applied — use it to close
-  out a work session instead of estimating.
-- Stopped sandboxes are free and keep their disk; stop a sandbox when a work block ends rather
-  than letting the TTL run it down.
+Workspace's provider checks its environment before every start and resume. Keep GitHub access, secret injection and agent credentials off there. Its sandbox-only Boat key is for that VM's lifecycle. A pot's control key belongs in the vault, outside the Boat VM.
+
+Use `boat ssh ID` for manual inspection. Runtime values go over stdin rather than command text. Boat's API exec stores command history, so keep credentials out of `boat exec`. Read https://docs.boat.dev/ssh-access.md for SSH and file transfer details.
+
+Tailnet enrollment and preview links belong to `~/.pi/agent/skills/tailnet-links/SKILL.md`. Load that skill before joining a VM or sharing a server. A batch test job normally needs neither.
