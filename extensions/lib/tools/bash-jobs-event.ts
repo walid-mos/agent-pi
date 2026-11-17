@@ -23,12 +23,7 @@ export const BashJobsPayloadSchema = Type.Object({
 	awaited: Type.Integer({ minimum: 0 }),
 })
 
-export type BashJobsPayload = Static<typeof BashJobsPayloadSchema>
-
-export interface BashJobsRequest {
-	version: typeof BASH_JOBS_VERSION
-	result?: unknown
-}
+type BashJobsPayload = Static<typeof BashJobsPayloadSchema>
 
 const OpenRequestSchema = Type.Object({
 	version: Type.Unknown(),

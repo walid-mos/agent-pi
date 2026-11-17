@@ -20,14 +20,14 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import type { JobSnapshot } from '#lib/tools/bash-jobs-event.ts'
 
-export type BashExecutionResult = AgentToolResult<BashToolDetails | undefined>
-export type BashExecution = (
+type BashExecutionResult = AgentToolResult<BashToolDetails | undefined>
+type BashExecution = (
 	signal: AbortSignal,
 	update: AgentToolUpdateCallback<BashToolDetails | undefined>,
 ) => Promise<BashExecutionResult>
 
 /** How the command was started: foreground awaits a result, background does not. */
-export type JobStart = 'foreground' | 'background'
+type JobStart = 'foreground' | 'background'
 
 export interface BashJobOptions {
 	command: string
