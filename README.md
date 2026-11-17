@@ -44,6 +44,24 @@ Setup records managed package sources in untracked `setup-packages.json`. Remove
 
 Optional root `skills.json` and `magpie-routing.json` add project scope and routing entries after private client overlays. Routing blocks retain client-name order followed by registered-root array order, before scoped base rules and after explicit directives. Duplicate skills or configuration keys fail before settings or models are written. Registering an overlay trusts its code with Pi's permissions. See [ARCHITECTURE.md](ARCHITECTURE.md#repository-and-overlays) for ownership rules.
 
+## Shared skills
+
+`skills/` in `walid-mos/agent-pi` is the authoritative home of shared owned skills for Macs and pots. Edit their instructions, references and templates here. Dotfiles manages machine configuration, not skill content. Third-party skills keep their own recorded provenance under [Licenses](#licenses).
+
+Pi discovers the checkout's `skills/` automatically when this checkout is its agent home. Normal source sync carries skills to pots without another source or overlay registration. New sessions and children discover them after sync. An existing session needs an explicit read of the updated `SKILL.md` or a human-triggered `/reload` to refresh its catalog. Source availability alone does not prove a particular machine has synced it.
+
+For Hermes, merge this into the active profile's `config.yaml`, normally `~/.hermes/config.yaml`, preserving other settings:
+
+```yaml
+skills:
+  external_dirs:
+    - ~/.pi/agent/skills
+```
+
+Use the actual agent-home path for a nonstandard installation. [Hermes external directories](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills#external-skill-directories) load skills in place, including their relative resources. Replace a shared `~/.agents/skills` registration with this path. Remove stale copies of the moved skill from local, project and other configured skill directories only through reviewed machine cleanup, since they can shadow the shared directory. Preserve unrelated external registrations. `external_dirs` does not make files read-only. Review shared skill edits in this repository.
+
+Verify `html-report-design` with Pi's `/skill:html-report-design` and Hermes's `hermes skills list` and `skill_view(name="html-report-design")`. Confirm the resolved `SKILL.md` and its template manifest, CSS and starter all come from the same agent-pi checkout. Installing or syncing the source does not verify an already running Hermes session.
+
 ## Isolated agent homes
 
 Clone into a disposable directory and run its own `bin/setup.ts`. Start Pi with `PI_CODING_AGENT_DIR` set to that checkout. Setup refuses a variable pointing elsewhere, so an isolated install cannot overwrite the normal agent home.
@@ -77,4 +95,4 @@ The question and secret tools support explicit pot opt-in, shared terminal/Disco
 
 ## Licenses
 
-Vendored skills and packages keep their upstream license beside a `SOURCE.md` naming the upstream and revision.
+Third-party vendored skills and packages keep their upstream license beside a `SOURCE.md` naming the upstream and revision. Moving owned skills here transfers maintenance to agent-pi. Their previous location belongs in the move's pull request as historical provenance.
