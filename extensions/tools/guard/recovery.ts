@@ -6,6 +6,7 @@
  */
 import { basename, dirname, resolve } from 'node:path'
 
+import { contentText } from '#lib/content-text.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
 
 import type {
@@ -21,12 +22,6 @@ const MIN_PREFIX = 12
 const MAX_MATCH_LINES = 12
 const HALF = 2
 const LINE_NUMBER_WIDTH = 5
-
-function textOf(content: readonly { type: string; text?: string }[]): string {
-	return content
-		.flatMap(part => (part.type === 'text' && part.text ? [part.text] : []))
-		.join('\n')
-}
 
 function withHint(
 	content: ToolResultEventResult['content'] & object,
@@ -139,7 +134,7 @@ async function readHint(
 export function registerLookupRecovery(pi: ExtensionAPI): void {
 	pi.on('tool_result', async (event, ctx) => {
 		if (!event.isError) return undefined
-		const error = textOf(event.content)
+		const error = contentText(event.content)
 		let hint: string | undefined
 		if (event.toolName === 'edit' && /could not find/i.test(error))
 			hint = await editHint(event.input, error)

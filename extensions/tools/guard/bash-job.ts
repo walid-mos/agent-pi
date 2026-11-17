@@ -5,6 +5,8 @@ import { join } from 'node:path'
 
 import { truncateHead, truncateTail } from '@earendil-works/pi-coding-agent'
 
+import { contentText } from '#lib/content-text.ts'
+
 import {
 	JOB_COMMAND_BYTES,
 	JOB_PREVIEW_BYTES,
@@ -152,10 +154,7 @@ export class BashJob {
 	}
 
 	preview(): string {
-		const output = this.#result.content
-			.flatMap(part => (part.type === 'text' ? [part.text] : []))
-			.join('\n')
-		return truncateTail(output, {
+		return truncateTail(contentText(this.#result.content), {
 			maxBytes: JOB_PREVIEW_BYTES,
 			maxLines: JOB_PREVIEW_LINES,
 		}).content

@@ -10,6 +10,7 @@
  */
 import { uuidv7 } from '@earendil-works/pi-ai'
 
+import { contentText } from '#lib/content-text.ts'
 import { readCheckpointModel } from '#lib/context-budget/model.ts'
 import { readRelay } from '#lib/hc-relay.ts'
 import { isHumanPrompt, typedPromptText } from '#lib/human-prompt.ts'
@@ -43,9 +44,7 @@ function normalized(text: string): string {
 
 function userText(content: UserMessage['content']): string {
 	if (typeof content === 'string') return content
-	return content
-		.flatMap(part => (part.type === 'text' ? [part.text] : []))
-		.join(' ')
+	return contentText(content, ' ')
 }
 
 function firstHumanPrompt(
@@ -142,11 +141,7 @@ async function requestTitle(
 			},
 		)
 		if (response.stopReason !== 'stop') return undefined
-		return tidyTitle(
-			response.content
-				.flatMap(part => (part.type === 'text' ? [part.text] : []))
-				.join(' '),
-		)
+		return tidyTitle(contentText(response.content, ' '))
 	} catch {
 		return undefined
 	}

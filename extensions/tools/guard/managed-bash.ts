@@ -1,10 +1,11 @@
 /** Keep Pi's process execution and validation evidence behind a bounded foreground wait. */
 import { createBashToolDefinition } from '@earendil-works/pi-coding-agent'
 
+import { contentText } from '#lib/content-text.ts'
 import { bashOperations } from '#lib/runtime/pi-operations.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
 import { answerBashJobs, BASH_JOBS_EVENT } from '#lib/tools/bash-jobs-event.ts'
-import { nestedOptions, nestedText } from '#lib/tools/nested.ts'
+import { nestedOptions } from '#lib/tools/nested.ts'
 
 import { jobDoneMessage } from './bash-job-card.ts'
 import {
@@ -63,7 +64,10 @@ async function redirectLookup(
 	)
 	return {
 		content: [
-			{ type: 'text', text: `${plan.note}\n${nestedText(nested)}` },
+			{
+				type: 'text',
+				text: `${plan.note}\n${contentText(nested.result.content)}`,
+			},
 		],
 		details: { redirectedTo: plan.tool, args: plan.args },
 		isError: nested.isError,
@@ -148,12 +152,7 @@ export function registerManagedBash(pi: ExtensionAPI): void {
 					: { action: 'list' },
 				ctx.signal,
 			)
-			ctx.ui.notify(
-				report.content
-					.flatMap(part => (part.type === 'text' ? [part.text] : []))
-					.join('\n'),
-				'info',
-			)
+			ctx.ui.notify(contentText(report.content), 'info')
 		},
 	})
 }

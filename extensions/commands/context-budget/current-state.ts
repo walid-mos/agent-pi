@@ -1,5 +1,6 @@
-/** Small, observed evidence supplement from the full edited projection, not just its old prefix. */
 import { commandEvidence, evidenceText } from '#lib/command-evidence/schema.ts'
+/** Small, observed evidence supplement from the full edited projection, not just its old prefix. */
+import { contentText } from '#lib/content-text.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
 
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
@@ -47,10 +48,7 @@ export async function currentCheckpointState(
 		.slice(-MAX_RECENT_RESULTS)
 	const results = observed.map(message => {
 		if (message.role !== 'toolResult') return ''
-		const text = message.content
-			.filter(part => part.type === 'text')
-			.map(part => part.text)
-			.join('\n')
+		const text = contentText(message.content)
 		return `Call ${message.toolCallId}; tool error: ${message.isError}; reported output tail (not an inferred suite status):\n${text.slice(-MAX_RESULT_CHARS)}`
 	})
 	const saved = commandEvidence(ctx.sessionManager.getBranch())
