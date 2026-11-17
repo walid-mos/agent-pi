@@ -2,8 +2,6 @@
 import { createBashToolDefinition } from '@earendil-works/pi-coding-agent'
 
 import { contentText } from '#lib/content-text.ts'
-import { bashOperations } from '#lib/runtime/pi-operations.ts'
-import { runtimeFor } from '#lib/runtime/runtime.ts'
 import { answerBashJobs, BASH_JOBS_EVENT } from '#lib/tools/bash-jobs-event.ts'
 import { nestedOptions } from '#lib/tools/nested.ts'
 
@@ -77,7 +75,6 @@ async function redirectLookup(
 async function executeManagedBash(
 	pi: ExtensionAPI,
 	jobs: BashJobs,
-	bash: ReturnType<typeof createBashToolDefinition>,
 	args: ManagedArguments,
 ): ReturnType<ToolDefinition<typeof managedBashSchema, unknown>['execute']> {
 	const [id, input, signal, update, ctx] = args
@@ -100,7 +97,6 @@ async function executeManagedBash(
 		execute: (jobSignal, jobUpdate) =>
 			executeWithEvidence(
 				pi,
-				bash,
 				[id, commandInput, jobSignal, jobUpdate, ctx],
 				isCurrent,
 			),
@@ -114,13 +110,10 @@ function managedTool(
 	pi: ExtensionAPI,
 	jobs: BashJobs,
 ): ToolDefinition<typeof managedBashSchema, unknown> {
-	const runtime = runtimeFor(process.cwd())
-	const bash = createBashToolDefinition(process.cwd(), {
-		operations: bashOperations(runtime),
-	})
+	const { name, label } = createBashToolDefinition(process.cwd())
 	return {
-		name: bash.name,
-		label: bash.label,
+		name,
+		label,
 		parameters: managedBashSchema,
 		description: `${BASH_PURPOSE} Runs in the session cwd: never prefix \`cd <cwd> &&\`. Quoting breaks nested scripts (bash -c inside quotes, eval of a quoted string, a heredoc or $( ) inside quotes): write such a script to a file with the write tool and run \`bash <file>\`. Use read/grep/find/ls (or lookup for several at once) for file lookups; a plain cat/ls/grep/find/head/sed -n typed here is executed through that tool automatically. Run keeps this call open up to ${FOREGROUND_MS}ms (foregroundMs lengthens that, up to ${MAX_FOREGROUND_MS}ms; an open call costs no tokens) and returns the result, or a running jobId when the command outlives the window. background:true returns at once (servers). A job notifies this session when it completes: there is no wait action, never poll status; do independent work or end this turn and let the completion notification resume it. Manage jobs through this same tool with action:list/status/stop; status is one progress read per running job, stop cancels the process group. In one-shot sessions, finish or stop owned jobs before the final reply. Cancellation never restarts the agent. Running does not mean ready or successful. Owned jobs stop on reload, session replacement and exit. Explicit shell backgrounding or daemonization escapes job ownership; use background:true instead. Native output truncation and validation logs are retained.`,
 		promptSnippet: BASH_PURPOSE,
@@ -128,7 +121,7 @@ function managedTool(
 			`Validation commands save complete logs and exit evidence. Read those logs instead of rerunning to change head/tail/grep output. The same command is refused after ${MAX_IDENTICAL_CALLS} consecutive turns, a command whose arguments and output differ only in numbers after ${MAX_SIMILAR_CALLS}, a command failing with the same error (numbers aside) whatever its arguments after ${MAX_IDENTICAL_ERRORS}, and any command after ${MAX_IDENTICAL_RESULTS} consecutive turns of identical output; a sleep between commands and a command that only echoes, assigns or reads the clock are refused outright. Every call resends the whole conversation as a paid request: never fill a wait with calls. Change hypothesis or end the turn instead.`,
 			'A command that outlives the foreground window becomes an owned job and notifies this session on completion; lengthen foregroundMs for a long command whose result this turn needs. Use background:true for servers instead of nohup, setsid or shell backgrounding. Reuse the returned jobId; verify readiness separately. In one-shot sessions, finish or stop owned jobs before the final reply.',
 		],
-		execute: (...args) => executeManagedBash(pi, jobs, bash, args),
+		execute: (...args) => executeManagedBash(pi, jobs, args),
 	}
 }
 

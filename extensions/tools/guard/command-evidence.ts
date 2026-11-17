@@ -10,6 +10,7 @@ import {
 	commandEvidence,
 	evidenceText,
 } from '#lib/command-evidence/schema.ts'
+import { bashOperations } from '#lib/runtime/pi-operations.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
 
 import { commandWorkspace } from './command-workspace.ts'
@@ -116,6 +117,13 @@ async function prepareEvidence(
 	}
 }
 
+/** Pi's bash tool in the session cwd, on the machine that holds it. */
+function sessionBash(cwd: string): BashDefinition {
+	return createBashToolDefinition(cwd, {
+		operations: bashOperations(runtimeFor(cwd)),
+	})
+}
+
 function evidenceBash(cwd: string, steps: RecordedStep[]): BashDefinition {
 	const runtime = runtimeFor(cwd)
 	return createBashToolDefinition(cwd, {
@@ -166,13 +174,12 @@ async function saveSteps(
 
 export async function executeWithEvidence(
 	pi: ExtensionAPI,
-	bash: BashDefinition,
 	args: BashArguments,
 	isCurrent: () => boolean,
 ): ReturnType<BashDefinition['execute']> {
 	const [, , , , ctx] = args
 	const steps = await prepareSteps(args)
-	if (!steps.length) return bash.execute(...args)
+	if (!steps.length) return sessionBash(ctx.cwd).execute(...args)
 	const tool = evidenceBash(ctx.cwd, steps)
 	let execution: Awaited<ReturnType<BashDefinition['execute']>>
 	try {
