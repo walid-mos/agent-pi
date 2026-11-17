@@ -6,6 +6,7 @@
  * tile-sized snapshot records replayed with the answered card. */
 import { Text } from '@earendil-works/pi-tui'
 
+import { contentText } from '#lib/content-text.ts'
 import { TranscriptComponent } from '#lib/ui/transcript-component.ts'
 
 import { QuestionnaireCaptures } from './questionnaire-captures.ts'
@@ -88,10 +89,7 @@ export default function askUserQuestion(pi: ExtensionAPI): void {
 				return new TranscriptComponent(width =>
 					renderResultLines(details, width, theme),
 				)
-			const text = toolResult.content
-				.flatMap(part => (part.type === 'text' ? [part.text] : []))
-				.join('\n')
-			return new Text(text, 0, 0)
+			return new Text(contentText(toolResult.content), 0, 0)
 		},
 	})
 }

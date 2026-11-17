@@ -5,6 +5,8 @@ import { join } from 'node:path'
 
 import { truncateHead, truncateTail } from '@earendil-works/pi-coding-agent'
 
+import { contentText } from '#lib/content-text.ts'
+
 import {
 	JOB_COMMAND_BYTES,
 	JOB_PREVIEW_BYTES,
@@ -16,16 +18,16 @@ import type {
 	AgentToolUpdateCallback,
 	BashToolDetails,
 } from '@earendil-works/pi-coding-agent'
-import type { JobSnapshot } from './bash-job-schema.ts'
+import type { JobSnapshot } from '#lib/tools/bash-jobs-event.ts'
 
-export type BashExecutionResult = AgentToolResult<BashToolDetails | undefined>
-export type BashExecution = (
+type BashExecutionResult = AgentToolResult<BashToolDetails | undefined>
+type BashExecution = (
 	signal: AbortSignal,
 	update: AgentToolUpdateCallback<BashToolDetails | undefined>,
 ) => Promise<BashExecutionResult>
 
 /** How the command was started: foreground awaits a result, background does not. */
-export type JobStart = 'foreground' | 'background'
+type JobStart = 'foreground' | 'background'
 
 export interface BashJobOptions {
 	command: string
@@ -152,10 +154,7 @@ export class BashJob {
 	}
 
 	preview(): string {
-		const output = this.#result.content
-			.flatMap(part => (part.type === 'text' ? [part.text] : []))
-			.join('\n')
-		return truncateTail(output, {
+		return truncateTail(contentText(this.#result.content), {
 			maxBytes: JOB_PREVIEW_BYTES,
 			maxLines: JOB_PREVIEW_LINES,
 		}).content

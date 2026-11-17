@@ -23,7 +23,7 @@ Read [Rules of Workflows](https://developers.cloudflare.com/workflows/build/rule
 
 ## Testing Workflows
 
-Follow `~/.pi/agent/AGENTS.md` under Tests. For authorized test work: fetch [Vitest setup](https://developers.cloudflare.com/workers/testing/vitest-integration/write-your-first-test/) for current dependencies and configuration, then use the [Workflow test APIs](https://developers.cloudflare.com/workers/testing/vitest-integration/test-apis/#workflows) for introspection, step/event mocks, sleep controls, and cleanup.
+When a Workflow change gets a test (`~/.pi/agent/AGENTS.md` under Tests), fetch [Vitest setup](https://developers.cloudflare.com/workers/testing/vitest-integration/write-your-first-test/) for current dependencies and configuration, then use the [Workflow test APIs](https://developers.cloudflare.com/workers/testing/vitest-integration/test-apis/#workflows) for introspection, step/event mocks, sleep controls, and cleanup.
 
 Test retry behavior, event arrival and timeout paths, and duplicate external effects. Use documented introspection waits to observe completion rather than assuming a newly created instance has finished.
 

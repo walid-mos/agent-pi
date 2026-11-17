@@ -2,6 +2,8 @@
 
 import { resizeImage } from '@earendil-works/pi-coding-agent'
 
+import { contentText } from '#lib/content-text.ts'
+
 import { fxtwitterRecord, parseFxtwitterPayload } from './fx-payload.ts'
 import { fetchMediaBytes } from './media-download.ts'
 import { statusQuoteTextNotes } from './status-quote-notes.ts'
@@ -58,13 +60,6 @@ async function fetchTweetImage(
 	}
 }
 
-function toolText(content: readonly ToolContent[]): string {
-	return content
-		.filter((block): block is TextContent => block.type === 'text')
-		.map(block => block.text)
-		.join('\n')
-}
-
 function existingImageCount(details: unknown): number {
 	const imageCount = fxtwitterRecord(details)?.imageCount
 	if (typeof imageCount !== 'number' || imageCount < 0) return 0
@@ -106,7 +101,7 @@ export async function hydrateTweetMedia(
 ): Promise<
 	{ content: ToolContent[]; details: Record<string, unknown> } | undefined
 > {
-	const payload = parseFxtwitterPayload(toolText(content))
+	const payload = parseFxtwitterPayload(contentText(content))
 	const quoteTextNotes = payload
 		? statusQuoteTextNotes(payload, MAX_QUOTE_NOTE_TEXT_CHARACTERS)
 		: []

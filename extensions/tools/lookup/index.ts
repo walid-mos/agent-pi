@@ -10,8 +10,9 @@
  * Modules:
  *   ops.ts - pure: operation schema, owning-tool arguments, result rendering
  */
+import { contentText } from '#lib/content-text.ts'
 import { describeOperation } from '#lib/tools/lookup-sections.ts'
-import { nestedOptions, nestedText } from '#lib/tools/nested.ts'
+import { nestedOptions } from '#lib/tools/nested.ts'
 
 import { lookupParameters, renderOutcomes, toolArguments } from './ops.ts'
 
@@ -37,7 +38,11 @@ async function executeLookup(
 				toolArguments(op),
 				nestedOptions(signal),
 			)
-			return { op, text: nestedText(nested), isError: nested.isError }
+			return {
+				op,
+				text: contentText(nested.result.content),
+				isError: nested.isError,
+			}
 		}),
 	)
 	const rendered = renderOutcomes(outcomes)

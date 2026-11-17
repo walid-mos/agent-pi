@@ -1,29 +1,35 @@
 ---
 name: coding-tdd
 description: >-
-    Test pace for reproduced behavioural bugs, new units that branch on input
-    or state, and explicitly authorized test work. Load before authoring a
-    test. Authorization lives in AGENTS.md under Tests, enforced by the
-    test-write guard.
+    Red-green work order for a test that catches a reproduced bug or a new
+    unit branching on input or state, and the triage of a failing test:
+    mechanical breakage, intended behaviour change, pre-existing failure or
+    regression. Load before authoring a test or changing a test's
+    expectation.
 ---
 
-# Test pace
+# Test-driven work
 
-## Obtain the verdict
+Follow `~/.pi/agent/AGENTS.md` under Tests. This skill adds the work order.
 
-Follow `~/.pi/agent/AGENTS.md` under Tests. Use `test_pace` before adding a test the human did not ask for. When the human asked for tests or said yes to a test edit, write them directly: the guard reads the conversation itself. A refused write means no consent covers that path; ask once, naming the paths and the kind of edit. With `none` and no consent, prove the change through a runnable command, API call or real flow and proceed without test authoring.
+## Pick the work order
 
-For Claude Code, run the same decision with `node --experimental-transform-types ~/.pi/agent/bin/test-pace.ts --session <current transcript JSONL> --intent <named production bug or requirement> <exact test paths...>`. The transcript is the newest `*.jsonl` in this project's folder under `~/.claude/projects/`; the script reads the human's requests, answers and relays from it. Its output carries `pace` and `permission`, the consent covering every named path (`new`: new tests and their setup may be added; `existing`: existing tests may change; `none`: ask first). It is a decision, not a Pi session grant.
-
-## Follow the pace
-
-| Verdict | Work order |
+| The change | Work order |
 |---|---|
-| `bug` | Reproduce the defect through a public interface. Write one test naming it. Run it and show red, apply the smallest fix, then show green. |
-| `logic` | State each observable requirement. Write one failing test for the next requirement, implement enough to pass, then refactor with the test green. Repeat only for another stated requirement. |
-| `none` | Build directly. Run the existing checks that cover the change. |
+| Fixes a reproduced defect: wrong result, crash, wrong state or regression | Reproduce it through a public interface. Write one test named after it. Run it and show red, apply the smallest fix, then show green. |
+| Adds a unit whose behaviour branches on input or state: pure function, reducer, validation, permission, money rule, stateful hook or component | State each observable requirement. Write one failing test for the next requirement, implement enough to pass, then refactor with the test green. Repeat only for another stated requirement. |
+| Presentation, wording, wiring, configuration, dependencies, builds, renames, behaviour-preserving refactors, prototypes, one-off scripts, docs | Build directly. Run the existing checks that cover the change. |
 
-For explicitly authorized work outside these verdicts, follow the user's scope. Build prototypes and glue directly before locking an accepted requirement. A behaviour-preserving refactor uses the existing suite.
+## Triage a failing test
+
+Read the failing assertion and the diff of your task, then act on the first row that holds:
+
+| The failure | Action |
+|---|---|
+| Follows formatting, a moved or renamed import, a renamed symbol or a changed call signature whose meaning stays | Update the test to follow the code. |
+| Checks behaviour your task changed on purpose | Rewrite the expectation from the new requirement, never from the value the code now returns, and name the test and the behaviour in your report. |
+| Fails the same way on the base commit | Pre-existing: report it, and fix it only when it is in your task. |
+| Anything else | Regression: fix the code and keep the expectation. |
 
 ## Keep the cycle small
 

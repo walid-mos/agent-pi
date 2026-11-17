@@ -4,21 +4,30 @@
  * is the mount point; no other routing rule exists.
  */
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import {
 	access,
 	mkdir,
 	readFile,
 	readdir,
-	realpath,
 	stat,
 	writeFile,
 } from 'node:fs/promises'
 
+import { createLocalBashOperations } from '@earendil-works/pi-coding-agent'
+
 import { anchorFor, knownTargetFor } from './anchor.ts'
 import { RemoteRuntime } from './remote-runtime.ts'
 
-import type { ExecOptions } from './remote.ts'
+import type { BashOperations } from '@earendil-works/pi-coding-agent'
+
+/** Options of a streamed command; `env` reaches local commands only, the Boat receives no local env. */
+export type ExecOptions = BashOperations['exec'] extends (
+	command: string,
+	cwd: string,
+	options: infer Options,
+) => unknown
+	? Options
+	: never
 
 export interface RuntimeStat {
 	readonly isDirectory: boolean
@@ -45,17 +54,12 @@ export interface Runtime {
 	/** Path as the executing machine sees it. */
 	toTarget(path: string): string
 	readFile(path: string): Promise<Buffer>
-	readFileSync(path: string): Buffer
 	writeFile(path: string, content: string | Buffer): Promise<void>
 	mkdir(path: string): Promise<void>
 	access(path: string): Promise<void>
-	realpath(path: string): Promise<string>
 	exists(path: string): Promise<boolean>
-	existsSync(path: string): boolean
 	stat(path: string): Promise<RuntimeStat>
-	statSync(path: string): RuntimeStat
 	readdir(path: string): Promise<string[]>
-	readdirSync(path: string): string[]
 	listDirectory(path: string): Promise<DirectoryEntry[]>
 	/** Run a shell command in `cwd`, capturing its output. */
 	run(command: string, cwd: string): Promise<CommandOutput>
@@ -98,23 +102,20 @@ async function isAccessible(path: string): Promise<boolean> {
 	}
 }
 
+const LOCAL_SHELL = createLocalBashOperations()
+
 const LOCAL: Runtime = {
 	isRemote: false,
 	toTarget: path => path,
 	readFile: path => readFile(path),
-	readFileSync: path => readFileSync(path),
 	writeFile: (path, content) => writeFile(path, content),
 	mkdir: async path => {
 		await mkdir(path, { recursive: true })
 	},
 	access: path => access(path),
-	realpath: path => realpath(path),
 	exists: isAccessible,
-	existsSync: path => existsSync(path),
 	stat: async path => fromStats(await stat(path)),
-	statSync: path => fromStats(statSync(path)),
 	readdir: path => readdir(path),
-	readdirSync: path => readdirSync(path),
 	listDirectory: async path =>
 		(await readdir(path, { withFileTypes: true })).map(entry => ({
 			name: entry.name,
@@ -123,7 +124,7 @@ const LOCAL: Runtime = {
 			isSymbolicLink: entry.isSymbolicLink(),
 		})),
 	run: (command, cwd) => runLocal(command, cwd),
-	exec: (command, cwd, options) => execLocal(command, cwd, options),
+	exec: (command, cwd, options) => LOCAL_SHELL.exec(command, cwd, options),
 }
 
 function runLocal(command: string, cwd: string): Promise<CommandOutput> {
@@ -141,22 +142,5 @@ function runLocal(command: string, cwd: string): Promise<CommandOutput> {
 				exitCode,
 			}),
 		)
-	})
-}
-
-function execLocal(
-	command: string,
-	cwd: string,
-	options: ExecOptions,
-): Promise<{ exitCode: number | null }> {
-	return new Promise((resolve, reject) => {
-		const child = spawn('bash', ['-c', command], {
-			cwd,
-			signal: options.signal,
-		})
-		child.stdout.on('data', options.onData)
-		child.stderr.on('data', options.onData)
-		child.on('error', reject)
-		child.on('close', exitCode => resolve({ exitCode }))
 	})
 }

@@ -70,20 +70,40 @@ export function isOutputFilter(stage: ShellStage): boolean {
 	)
 }
 
+export const VALIDATION_RUNNERS = [
+	'pnpm',
+	'npm',
+	'yarn',
+	'bun',
+	'npx',
+	'vitest',
+	'tsc',
+	'oxlint',
+	'oxfmt',
+] as const
+/** Tasks that also match with a `:<name>` suffix, such as `test:unit`. */
+const SCOPED_TASKS = ['test', 'check', 'lint'] as const
+const EXACT_TASKS = [
+	'vitest',
+	'typecheck',
+	'type-check',
+	'format:check',
+	'build',
+	'tsc',
+	'oxlint',
+	'oxfmt',
+] as const
+export const VALIDATION_TASKS = [...SCOPED_TASKS, ...EXACT_TASKS] as const
+const RUNNER = new RegExp(`^(?:${VALIDATION_RUNNERS.join('|')})$`)
+const TASK = new RegExp(
+	`^(?:(?:${SCOPED_TASKS.join('|')})(?::[\\w-]+)?|${EXACT_TASKS.join('|')})$`,
+)
+
 /** Only named package validation tasks; arbitrary scripts are never rewritten. */
 function isValidationRunner(words: string[]): boolean {
-	if (
-		!/^(?:pnpm|npm|yarn|bun|npx|vitest|tsc|oxlint|oxfmt)$/.test(
-			words[0] ?? '',
-		)
-	)
-		return false
+	if (!RUNNER.test(words[0] ?? '')) return false
 	if (words.includes('oxfmt') && !words.includes('--check')) return false
-	return words.some(word =>
-		/^(?:test(?::[\w-]+)?|vitest|type-?check|check(?::[\w-]+)?|lint(?::[\w-]+)?|format:check|build|tsc|oxlint|oxfmt)$/.test(
-			word,
-		),
-	)
+	return words.some(word => TASK.test(word))
 }
 
 const LOOSE_OPERATOR = /\|\||&&|[|;\n]/
