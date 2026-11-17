@@ -5,7 +5,7 @@ Extends **Test Quality: Every Test Must Be Falsifiable** in `SKILL.md`; the core
 ## Prove the Test Can Fail
 
 - **Mutate-to-kill mechanics:** temporarily break the code the test exercises - invert a condition, off-by-one a loop bound, swap an operator - run the suite, confirm the test goes red, then restore. Never leave the mutation behind. Anything heavily mocked must pass this check before being trusted.
-- **At bug pace, the test FAILED before the fix** and passes after. A test written after the fix already passed confirms what the fix already proved - if it could have failed, it should have.
+- **For a reproduced bug, the test FAILED before the fix** and passes after. A test written after the fix already passed confirms what the fix already proved - if it could have failed, it should have.
 
 ## Tautology Patterns, Dissected
 
