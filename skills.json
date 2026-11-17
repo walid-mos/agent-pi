@@ -40,6 +40,10 @@
 				"**/AGENTS.md",
 				"**/ARCHITECTURE.md"
 			]
+		},
+		"north-star": {
+			"tools": ["edit", "write"],
+			"paths": ["$AGENT/plans/active/north-stars/**"]
 		}
 	}
 }
