@@ -18,7 +18,7 @@ import type {
 	AgentToolUpdateCallback,
 	BashToolDetails,
 } from '@earendil-works/pi-coding-agent'
-import type { JobSnapshot } from './bash-job-schema.ts'
+import type { JobSnapshot } from '#lib/tools/bash-jobs-event.ts'
 
 export type BashExecutionResult = AgentToolResult<BashToolDetails | undefined>
 export type BashExecution = (

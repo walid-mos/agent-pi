@@ -1,5 +1,6 @@
 import { Value } from 'typebox/value'
 
+import { JobSnapshotSchema } from '#lib/tools/bash-jobs-event.ts'
 import { renderActivityStatus } from '#lib/ui/activity-line.ts'
 import { formatActivityDuration } from '#lib/ui/activity-timing.ts'
 import {
@@ -12,14 +13,12 @@ import { blockTitle, framedBlock, frameContentWidth } from '#lib/ui/frame.ts'
 import { CARD_BORDER_STRENGTH, CARD_INSETS } from '#lib/ui/message-card.ts'
 import { wrapTerminalLine } from '#lib/ui/terminal-text.ts'
 
-import { jobSnapshotSchema as JobSnapshotSchema } from './bash-job-schema.ts'
-
 import type {
 	ExtensionAPI,
 	MessageRenderer,
 } from '@earendil-works/pi-coding-agent'
 import type { Component } from '@earendil-works/pi-tui'
-import type { JobSnapshot } from './bash-job-schema.ts'
+import type { JobSnapshot } from '#lib/tools/bash-jobs-event.ts'
 
 const BASH_JOB_DONE_TYPE = 'pi-bash-job-complete'
 
