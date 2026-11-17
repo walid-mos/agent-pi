@@ -54,9 +54,8 @@ class ReviewFixTests(ExportCase):
     def test_fractional_and_bom_csv_input_prices_and_bad_times_stay_unknown(self):
         fractional = [*VALUES]
         fractional[0] = "2026-11-17 23:30:00.5"
-        snapshot = self.estimates([fractional, [*VALUES[:0], *VALUES]], name="bom.csv", encoding="utf-8-sig")
         self.append(self.row(), self.row(t="2026-11-17T23:40:00Z", response_id="second"))
-        snapshot = self.estimates([fractional, ["not-a-time", *VALUES[1:]]], name="mixed.csv")
+        snapshot = self.estimates([fractional, ["not-a-time", *VALUES[1:]]], name="bom.csv", encoding="utf-8-sig")
         self.run_cli("--estimates", str(snapshot), "--price-snapshot-at", "2026-11-18T10:00:00Z")
         priced = [event["cost"]["estimate_usd"] for event in self.events()]
         self.assertEqual(priced, [0.25, None])

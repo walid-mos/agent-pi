@@ -7,6 +7,28 @@ VALUES = ["2026-11-17T23:30:00Z", "group/router", "codex", "gpt-6.1-sol", 100, 2
 
 
 class EstimateTests(ExportCase):
+    def test_invalid_cost_rows_stay_unknown_without_discarding_valid_neighbors(self):
+        self.append(self.row(), self.row(response_id="bad"), self.row(response_id="last"))
+        invalid_costs = ["not-a-cost", " ", "NaN", "inf", "-inf", "1e309", "-1", "9007199254740992"]
+        for index, amount in enumerate(invalid_costs):
+            with self.subTest(cost=amount):
+                self.state = self.fixture / f"state-{index}"
+                self.output = self.fixture / f"export-{index}"
+                invalid = [*VALUES[:12], "bad", *VALUES[13:-1], amount]
+                last = [*VALUES[:12], "last", *VALUES[13:-1], "0.75"]
+                snapshot = self.estimates([VALUES, invalid, last])
+                self.run_cli("--estimates", str(snapshot), "--price-snapshot-at", "2026-11-18T10:00:00Z")
+                events = self.events()
+                self.assertEqual(sorted(event["cost"]["estimate_usd"] for event in events
+                                        if event["cost"]["estimate_usd"] is not None), [0.25, 0.75])
+                unknown = [event for event in events if event["cost"]["estimate_usd"] is None]
+                self.assertEqual(len(unknown), 1)
+                self.assertEqual(unknown[0]["cost"]["price_source"], "unavailable")
+                total = self.manifest()["days"][1]["workload"]
+                self.assertEqual(total["events"], 3)
+                self.assertEqual(total["unpriced_events"], 1)
+                self.assertEqual(total["estimate_usd"], 1.0)
+
     def test_available_estimate_has_snapshot_provenance_and_never_becomes_billed_cost(self):
         self.append(self.row(), self.row(kind="routing", response_id="routing"))
         snapshot = self.estimates([VALUES])
