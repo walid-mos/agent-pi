@@ -6,10 +6,12 @@ import { BrokerReceiptSchema } from './schema.ts'
 
 import type {
 	BrokerAnswer,
+	BrokerClick,
 	BrokerQuestion,
 	BrokerReceipt,
 	BrokerRequest,
 	BrokerResult,
+	BrokerStored,
 	BrokerTarget,
 	QuestionDialog,
 } from './schema.ts'
@@ -123,7 +125,7 @@ function checkQuestionResult(
 }
 
 function checkSecretTarget(
-	outcome: Extract<BrokerResult, { status: 'stored' }>,
+	outcome: BrokerStored,
 	target: BrokerTarget,
 	dialog: string,
 	deliveryId: string | undefined,
@@ -143,10 +145,7 @@ function checkSecretTarget(
 		)
 }
 
-function checkBrowserTarget(
-	outcome: Extract<BrokerResult, { status: 'stored' }>,
-	origin: string,
-): void {
+function checkBrowserTarget(outcome: BrokerStored, origin: string): void {
 	if (
 		outcome.target?.destination !== 'browser' ||
 		outcome.target.origin !== origin ||
@@ -205,7 +204,7 @@ function checkEvidence(request: QuestionRequest, outcome: Answered): void {
 
 function checkQuestionClick(
 	question: BrokerQuestion,
-	clicks: NonNullable<Answered['evidence']>['clicks'],
+	clicks: readonly BrokerClick[],
 ): void {
 	const matches = clicks.filter(click => click.question === question.id)
 	const [click] = matches

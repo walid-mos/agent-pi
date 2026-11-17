@@ -9,7 +9,7 @@ import type { DialogCompletion } from '#lib/human-dialog/completion.ts'
 import type { BrokerFactory } from '#lib/human-dialog/config.ts'
 import type {
 	BrokerReceipt,
-	BrokerResult,
+	BrokerStored,
 	BrokerTarget,
 } from '#lib/human-dialog/schema.ts'
 import type { SecretRequest } from './request.ts'
@@ -18,12 +18,11 @@ import type { SecretResult } from './schema.ts'
 type ShowSecret = (
 	completion: DialogCompletion<string | undefined>,
 ) => Promise<string | undefined>
-type Stored = Extract<BrokerResult, { status: 'stored' }>
 type Settlement = {
 	target: BrokerTarget
 	key: string
 	signal: AbortSignal | undefined
-	stored: (receipt: BrokerReceipt, result: Stored) => SecretResult
+	stored: (receipt: BrokerReceipt, result: BrokerStored) => SecretResult
 }
 
 export async function brokerSecret(

@@ -101,6 +101,8 @@ export const BrokerReceiptSchema = Type.Object({
 
 export type BrokerAnswer = Static<typeof BrokerAnswerSchema>
 export type BrokerResult = Static<typeof BrokerResultSchema>
+export type BrokerStored = Extract<BrokerResult, { status: 'stored' }>
+export type BrokerClick = Static<typeof ClickSchema>
 export type BrokerReceipt = Static<typeof BrokerReceiptSchema>
 export const BrokerSourceSchema = Type.Object(
 	{
