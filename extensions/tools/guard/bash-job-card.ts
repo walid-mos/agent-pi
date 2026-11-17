@@ -25,6 +25,7 @@ const BASH_JOB_DONE_TYPE = 'pi-bash-job-complete'
 
 const NOTIFICATION_LEAD = 'Background command finished: '
 const GUIDANCE_LEAD = 'Use bash action=status with this jobId'
+const GUIDANCE = `${GUIDANCE_LEAD} for details. Do not rerun the command to recover output.`
 const COLLAPSED_OUTPUT_ROWS = 6
 
 const COMPOUND_SPLIT = / (?:&&|\|\||;|\|) /g
@@ -233,6 +234,18 @@ class JobDoneCard implements Component {
 				),
 			)
 		return lines
+	}
+}
+
+/** The completion message this card renders; the model reads the same text. */
+export function jobDoneMessage(
+	snapshot: JobSnapshot,
+	preview: string,
+): { customType: string; content: string; display: true } {
+	return {
+		customType: BASH_JOB_DONE_TYPE,
+		content: `${NOTIFICATION_LEAD}${JSON.stringify(snapshot)}\n${preview}\n${GUIDANCE}`,
+		display: true,
 	}
 }
 

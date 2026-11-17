@@ -6,6 +6,7 @@ import { runtimeFor } from '#lib/runtime/runtime.ts'
 import { answerBashJobs, BASH_JOBS_EVENT } from '#lib/tools/bash-jobs-event.ts'
 import { nestedOptions, nestedText } from '#lib/tools/nested.ts'
 
+import { jobDoneMessage } from './bash-job-card.ts'
 import {
 	FOREGROUND_MS,
 	MAX_FOREGROUND_MS,
@@ -33,14 +34,10 @@ const BASH_PURPOSE =
 
 function notifyCompletion(pi: ExtensionAPI, job: BashJob): void {
 	if (job.snapshot().status === 'cancelled') return
-	pi.sendMessage(
-		{
-			customType: 'pi-bash-job-complete',
-			content: `Background command finished: ${JSON.stringify(job.snapshot())}\n${job.preview()}\nUse bash action=status with this jobId for details. Do not rerun the command to recover output.`,
-			display: true,
-		},
-		{ triggerTurn: true, deliverAs: 'steer' },
-	)
+	pi.sendMessage(jobDoneMessage(job.snapshot(), job.preview()), {
+		triggerTurn: true,
+		deliverAs: 'steer',
+	})
 }
 
 type ManagedArguments = Parameters<
