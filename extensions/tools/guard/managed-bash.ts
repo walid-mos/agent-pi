@@ -80,16 +80,13 @@ async function executeManagedBash(
 	const [id, input, signal, update, ctx] = args
 	if (input.action && input.action !== 'run')
 		return jobs.control(input, signal)
-	const plan = shellLookupPlan(
-		input.command ?? '',
-		pi.getActiveTools(),
-		ctx.cwd,
-	)
+	const command = input.command ?? ''
+	const plan = shellLookupPlan(command, pi.getActiveTools(), ctx.cwd)
 	if (plan?.kind === 'redirect') return redirectLookup(plan, ctx, signal)
 	const sessionId = ctx.sessionManager.getSessionId()
 	const isCurrent = (): boolean =>
 		jobs.isOpen() && ctx.sessionManager.getSessionId() === sessionId
-	const commandInput = { ...input, command: input.command ?? '' }
+	const commandInput = { ...input, command }
 	return jobs.run(input, {
 		cwd: ctx.cwd,
 		signal,
