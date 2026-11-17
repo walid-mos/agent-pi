@@ -13,6 +13,7 @@ from .schema import encode
 
 PRIVATE_DIRECTORY = 0o700
 PRIVATE_FILE = 0o600
+MAX_LINE_BYTES = 1024 * 1024
 
 
 def private_directory(path):

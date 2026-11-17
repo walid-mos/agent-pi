@@ -3,10 +3,11 @@ import json
 import os
 from datetime import timedelta
 
+from .estimates import estimate_key
 from .normalize import instant, normalize
 from .schema import EVENT, encode, validate
+from .storage import MAX_LINE_BYTES
 
-MAX_LINE_BYTES = 1024 * 1024
 ANCHOR_BYTES = 4096
 
 
@@ -43,7 +44,7 @@ def record_event(row, identity, database, options, catalog):
     is_late = instant(options.now).date() > instant(event["ts_utc"]).date() + timedelta(days=1)
     inserted = database.execute("INSERT OR IGNORE INTO events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (identifier, day, event["ts_utc"], event["kind"], event["response_ref"], event["request_ref"],
-         options.estimate_key(row), int(is_late), encode(event))).rowcount
+         estimate_key(row, identity), int(is_late), encode(event))).rowcount
     if inserted:
         database.execute("INSERT OR IGNORE INTO dirty VALUES (?)", (day,))
         database.execute("""INSERT OR IGNORE INTO dirty

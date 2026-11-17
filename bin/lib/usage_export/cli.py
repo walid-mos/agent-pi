@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .estimates import apply_estimates, estimate_key
+from .estimates import apply_estimates
 from .normalize import timestamp
 from .publish import publish
 from .scan import scan_ledger
@@ -105,7 +105,6 @@ def export_usage(options):
     with state_database(options.state) as database:
         host = identity(database)
         bind(database, binding, catalog)
-        options.estimate_key = lambda row: estimate_key(row, host)
         scan = scan_ledger(database, host, options, catalog)
         apply_estimates(database, host, options)
         manifest = publish(database, host, options, scan)

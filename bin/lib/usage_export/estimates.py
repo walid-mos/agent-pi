@@ -3,9 +3,8 @@ import json
 import math
 
 from .normalize import MAX_NUMBER, TOKEN_FIELDS, numeric, opaque, text, timestamp, unknown_cost
-from .scan import MAX_LINE_BYTES
 from .schema import encode
-from .storage import file_digest
+from .storage import MAX_LINE_BYTES, file_digest
 
 CSV_FIELDS = {"t": "time", "req": "requested_model", "provider": "provider", "served": "served_model",
               "in": "input_tokens", "out": "output_tokens", "cache_read": "cache_read_tokens",
