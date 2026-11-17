@@ -70,7 +70,7 @@ export function resolveFallbackChain(
 	registry: Registry,
 	warn: (message: string) => void,
 	providersPath?: string,
-): FallbackTarget[] {
+): Array<FallbackTarget & { configuredReference: string }> {
 	return chain.flatMap(reference => {
 		try {
 			const target = reference.startsWith(CODEX_GROUP_PREFIX)
@@ -80,7 +80,7 @@ export function resolveFallbackChain(
 						providersPath,
 					)
 				: plainTarget(reference, registry)
-			return target ? [target] : []
+			return target ? [{ ...target, configuredReference: reference }] : []
 		} catch (error) {
 			warn(`Fallback: skipped ${reference}: ${errorText(error)}`)
 			return []

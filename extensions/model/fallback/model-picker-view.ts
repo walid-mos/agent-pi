@@ -97,6 +97,7 @@ export interface PickerView {
 	/** The live OpenRouter price list, when one has been read this session. */
 	pricing: OpenRouterPricing | undefined
 	config: ModelFallbackConfig
+	fallbackReferences: ReadonlyMap<string, string>
 	/** The pins `subagents.agentOverrides` holds, as the settings file has them. */
 	agentPins: readonly AgentPin[]
 	/**

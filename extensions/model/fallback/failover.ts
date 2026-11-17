@@ -23,6 +23,7 @@ import {
 	resolveFallbackChain,
 } from './targets.ts'
 
+import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import type {
 	BoundaryResult,
 	ExtensionAPI,
@@ -50,12 +51,16 @@ export function endFallback(
 	ctx.ui.setStatus(STATUS_KEY, undefined)
 }
 
-/** Announces a switch the user has to know about: it changed their provider. */
-function reportFallback(
+function activateFallback(
+	pi: ExtensionAPI,
 	ctx: ExtensionContext,
-	failure: FailureSighting,
-	reference: string,
+	session: FallbackSession,
+	recovery: { failure: FailureSighting; switched: Switched },
 ): void {
+	const { failure, switched } = recovery
+	const { reference, thinkingLevel, previousThinkingLevel } = switched
+	pi.setThinkingLevel(thinkingLevel)
+	session.markFallbackActive(failure.model, previousThinkingLevel)
 	ctx.ui.notify(
 		`Fallback: ${failure.model ?? 'current model'} → ${reference} (${failure.reason})`,
 		'warning',
@@ -116,8 +121,10 @@ async function abandonChain(
 	)
 }
 
-interface Switched {
+type Switched = {
 	reference: string
+	thinkingLevel: ModelThinkingLevel
+	previousThinkingLevel: ModelThinkingLevel
 }
 
 async function switchToNextModel(
@@ -146,15 +153,15 @@ async function switchToNextModel(
 	}
 	session.trackSwitch(target.reference)
 	if (await pi.setModel(target.model)) {
-		pi.setThinkingLevel(
-			levelForTarget(
+		return {
+			reference: target.reference,
+			previousThinkingLevel,
+			thinkingLevel: levelForTarget(
 				target.thinkingLevel,
 				session.thinkingLevelToRestore(),
 				previousThinkingLevel,
 			),
-		)
-		session.markFallbackActive(failure.model, previousThinkingLevel)
-		return { reference: target.reference }
+		}
 	}
 	session.forgetSwitch(target.reference)
 	ctx.ui.notify(
@@ -178,7 +185,7 @@ export async function performFailover(
 	if (ctx.signal?.aborted || sessionId !== ctx.sessionManager.getSessionId())
 		return undefined
 	const candidate = switched.reference
-	reportFallback(ctx, failure, candidate)
+	activateFallback(pi, ctx, session, { failure, switched })
 	return {
 		entries: ctx.hasPendingMessages()
 			? []
@@ -203,7 +210,7 @@ export async function failoverAfterAbort(
 	const switched = await switchToNextModel(pi, ctx, session, failure)
 	if (!switched || sessionId !== ctx.sessionManager.getSessionId()) return
 	const candidate = switched.reference
-	reportFallback(ctx, failure, candidate)
+	activateFallback(pi, ctx, session, { failure, switched })
 	pi.sendMessage(continuationAfterFailover(ctx, failure, candidate), {
 		triggerTurn: true,
 	})

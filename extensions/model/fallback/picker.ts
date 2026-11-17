@@ -27,6 +27,7 @@ import {
 	persistScopeList,
 } from './model-picker-saves.ts'
 import { readSettingsSnapshot } from './model-picker-settings.ts'
+import { resolveFallbackChain } from './targets.ts'
 
 import type {
 	ExtensionAPI,
@@ -67,6 +68,7 @@ function scopeEntries(ctx: ExtensionContext): ScopeEntry[] {
 /** Everything the picker renders, read once: rendering performs no IO. */
 function pickerView(ctx: ExtensionContext, deps: PickerDeps): PickerView {
 	const settings = readSettingsSnapshot()
+	const config = deps.getConfig()
 	// The `subagents` package owns agent discovery: it answers the roster over
 	// pi's event bus in the same process, and `undefined` means it did not
 	// (not installed, older version, or an answer this reader refuses).
@@ -85,7 +87,12 @@ function pickerView(ctx: ExtensionContext, deps: PickerDeps): PickerView {
 		patterns: settings.patterns,
 		isSettingsReadable: settings.isReadable,
 		pricing: deps.pricing.snapshot(),
-		config: deps.getConfig(),
+		config,
+		fallbackReferences: new Map(
+			resolveFallbackChain(config.chain, ctx.modelRegistry, message =>
+				ctx.ui.notify(message, 'warning'),
+			).map(target => [target.configuredReference, target.reference]),
+		),
 		agentPins: settings.agentPins,
 		areAgentPinsKnown: settings.areAgentPinsKnown,
 		roster: roster?.agents,
