@@ -1,6 +1,5 @@
 import argparse
 import hashlib
-import json
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -9,10 +8,10 @@ from zoneinfo import ZoneInfo
 
 from .estimates import apply_estimates
 from .normalize import timestamp
-from .publish import publish
+from .publish import publish, read_manifest
 from .scan import scan_ledger
-from .schema import MANIFEST, SCHEMA, encode, validate
-from .storage import identity, private_directory, state_database
+from .schema import SCHEMA, encode
+from .storage import identity, read_json, state_database
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_REPORT_DAYS = 3660
@@ -44,18 +43,10 @@ def parser():
     return root
 
 
-def read_config(path):
-    with path.open("rb") as stream:
-        encoded = stream.read(MAX_CONFIG_BYTES + 1)
-    if len(encoded) > MAX_CONFIG_BYTES:
-        raise ValueError("configuration too large")
-    return json.loads(encoded)
-
-
 def catalog_labels(path):
     if path is None:
         return {}
-    catalog = read_config(path)
+    catalog = read_json(path, MAX_CONFIG_BYTES)
     if not isinstance(catalog, dict) or set(catalog) - {"req", "served", "provider", "agent"}:
         raise ValueError("invalid public catalog")
     for values in catalog.values():
@@ -116,9 +107,6 @@ def bind(database, run):
 
 
 def export_usage(run):
-    private_directory(run.state)
-    private_directory(run.output)
-    private_directory(run.output / "days")
     with state_database(run.state) as database:
         host = identity(database)
         bind(database, run)
@@ -136,9 +124,7 @@ def main():
             print(encode(SCHEMA))
             return 0
         if options.command == "coverage":
-            manifest = read_config(options.output / "manifest.json")
-            validate(manifest, MANIFEST)
-            print(encode(manifest))
+            print(encode(read_manifest(options.output)))
             return 0
         print(encode(export_usage(settings(options))))
         return 0

@@ -79,6 +79,14 @@ def identity(database):
     return {**result, "salt": bytes.fromhex(result["salt"])}
 
 
+def read_json(path, limit):
+    with path.open("rb") as stream:
+        encoded = stream.read(limit + 1)
+    if len(encoded) > limit:
+        raise ValueError("file too large")
+    return json.loads(encoded)
+
+
 def sync_directory(path):
     descriptor = os.open(path, os.O_RDONLY)
     try:

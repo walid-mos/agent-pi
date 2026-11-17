@@ -2,7 +2,10 @@ import gzip
 import json
 
 from .schema import DAY_ENTRY, MANIFEST, TOKENS, VERSION, encode, validate
-from .storage import private_directory, write_durably
+from .storage import private_directory, read_json, write_durably
+
+MANIFEST_FILE = "manifest.json"
+MAX_MANIFEST_BYTES = 1024 * 1024
 
 
 def empty_total():
@@ -89,5 +92,11 @@ def publish(database, identity, run, scan):
                 "scan": scan.summary, "days": [day_entry(database, day) for day in run.days]}
     validate(manifest, MANIFEST)
     contents = (encode(manifest) + "\n").encode()
-    write_durably(run.output, lambda stream: stream.write(contents), lambda digest: "manifest.json")
+    write_durably(run.output, lambda stream: stream.write(contents), lambda digest: MANIFEST_FILE)
+    return manifest
+
+
+def read_manifest(output):
+    manifest = read_json(output / MANIFEST_FILE, MAX_MANIFEST_BYTES)
+    validate(manifest, MANIFEST)
     return manifest
