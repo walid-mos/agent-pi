@@ -8,7 +8,8 @@
 		"extensions/*/*/index.ts"
 	],
 	"usedClassMembers": [
-		{ "implements": "Component", "members": ["invalidate"] }
+		{ "implements": "Component", "members": ["invalidate"] },
+		{ "implements": "Focusable", "members": ["focused"] }
 	],
 	"usedExports": [
 		{ "pattern": "extensions/*/*/index.ts", "exports": ["default"] }
