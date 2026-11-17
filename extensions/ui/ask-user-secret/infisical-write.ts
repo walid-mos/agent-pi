@@ -6,6 +6,8 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
+import { describeTarget } from '../../../security/infisical-target.ts'
+
 import type { SecretTarget } from '../../../security/infisical-target.ts'
 
 const SCRIPT = fileURLToPath(
@@ -75,6 +77,8 @@ function parseOutcome(stdout: string, target: SecretTarget): StoredSecret {
 		[]
 	return {
 		operation: operation ?? 'written',
-		target: `${location ?? `${target.workspaceId}/${target.environment}${target.path}`} ${target.name}`,
+		target: location
+			? `${location} ${target.name}`
+			: describeTarget(target),
 	}
 }

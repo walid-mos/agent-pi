@@ -1,5 +1,7 @@
 import { dialogId } from '#lib/human-dialog/receipt.ts'
 
+import { describeTarget } from '../../../security/infisical-target.ts'
+
 import { BrowserSecretOwner } from './browser-owner.ts'
 import { secretSession } from './secret-session.ts'
 
@@ -105,7 +107,7 @@ function secretReceipt(
 	}
 	return {
 		status: 'stored',
-		target: `${request.target.workspaceId}/${request.target.environment}${request.target.path} ${request.target.name}`,
+		target: describeTarget(request.target),
 		operation: 'written',
 		broker: receipt,
 	}
