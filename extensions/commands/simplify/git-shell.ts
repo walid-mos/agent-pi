@@ -6,8 +6,8 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { quote } from '#lib/runtime/remote.ts'
 import { runtimeFor } from '#lib/runtime/runtime.ts'
+import { quote } from '#lib/shell-quote.ts'
 
 import { errorMessage, isRecord } from './json.ts'
 

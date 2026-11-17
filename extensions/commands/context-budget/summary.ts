@@ -1,6 +1,7 @@
 /** One bounded Context Budget checkpoint; failure never invokes Pi's summarizer. */
 import { uuidv7 } from '@earendil-works/pi-ai'
 
+import { contentText } from '#lib/content-text.ts'
 import {
 	CHECKPOINT_STARTED_EVENT,
 	CHECKPOINT_FINISHED_EVENT,
@@ -74,11 +75,7 @@ async function checkpoint(
 		},
 	)
 	signal.throwIfAborted()
-	const summary = response.content
-		.filter(part => part.type === 'text')
-		.map(part => part.text)
-		.join('\n')
-		.trim()
+	const summary = contentText(response.content).trim()
 	if (response.stopReason !== 'stop' || !summary)
 		throw new Error(
 			`Checkpoint ${model.provider}/${model.id} failed: ${response.stopReason}; no complete summary was returned.`,

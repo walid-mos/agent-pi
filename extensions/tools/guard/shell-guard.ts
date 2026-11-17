@@ -44,10 +44,13 @@ export type LookupPlan =
 	| { kind: 'redirect'; tool: string; args: ToolArguments; note: string }
 	| { kind: 'refuse'; reason: string }
 
-function commandOf(input: unknown): string {
-	if (!input || typeof input !== 'object') return ''
-	const command = Reflect.get(input, 'command')
-	return typeof command === 'string' ? command.trim() : ''
+/** The shell text of a bash or host call; any other input is its JSON, which no lookup shape matches. */
+export function commandText(input: unknown): string {
+	if (typeof input === 'object' && input !== null && 'command' in input) {
+		const { command } = input
+		if (typeof command === 'string') return command
+	}
+	return JSON.stringify(input) ?? ''
 }
 
 function lookupOwner(stage: ShellStage): string | undefined {
@@ -108,11 +111,11 @@ function refusal(owner: string): string {
 
 /** Decide what bash does with a lookup-only command: run it through the owner, or refuse. */
 export function shellLookupPlan(
-	input: unknown,
+	command: string,
 	activeTools: readonly string[],
 	cwd: string,
 ): LookupPlan | undefined {
-	const stages = shellStages(commandOf(input))
+	const stages = shellStages(command.trim())
 	const owner = ownerOf(stages, activeTools)
 	if (!owner) return undefined
 	const simple = simpleLookup(stages, cwd)
@@ -128,10 +131,10 @@ export function shellLookupPlan(
 
 /** The host tool has no in-tool redirect: a lookup there is refused outright. */
 export function shellLookupRefusal(
-	input: unknown,
+	command: string,
 	activeTools: readonly string[],
 ): { block: true; reason: string } | undefined {
-	const owner = ownerOf(shellStages(commandOf(input)), activeTools)
+	const owner = ownerOf(shellStages(command.trim()), activeTools)
 	if (!owner) return undefined
 	return { block: true, reason: refusal(owner) }
 }

@@ -11,6 +11,7 @@
  * resume.
  */
 
+import { contentText } from '#lib/content-text.ts'
 import { PROMPT_ATTACHMENT } from '#lib/ui/prompt-attachment.ts'
 
 import { renderAttachmentStrip } from './attachment-strip.ts'
@@ -129,10 +130,7 @@ function latestUserMessage(
 function userMessageText(message: UserMessage): string {
 	const { content } = message
 	if (typeof content === 'string') return content
-	return content
-		.filter(part => part.type === 'text')
-		.map(part => part.text)
-		.join('')
+	return contentText(content, '')
 }
 
 export function renderTranscriptAttachments(

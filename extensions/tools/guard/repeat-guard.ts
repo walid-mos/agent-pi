@@ -9,7 +9,8 @@
  * failing with one error whose text differs only in its numbers whatever the
  * arguments (a model varying a broken command instead of changing method). A streak
  * past its limit blocks the call; every further turn that repeats it escalates:
- * block, then end the run after the batch, then abort the run. Nested calls
+ * block, then block and steer, then end the run after the batch, then abort
+ * the run. Nested calls
  * (lookup, codemode scripts) are not model decisions and stay out of history.
  */
 import { createHash } from 'node:crypto'

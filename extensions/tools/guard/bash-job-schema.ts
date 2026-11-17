@@ -63,23 +63,3 @@ export const managedBashSchema = Type.Object(
 	{ additionalProperties: false },
 )
 export type ManagedBashInput = Static<typeof managedBashSchema>
-
-export const jobSnapshotSchema = Type.Object({
-	jobId: Type.String(),
-	command: Type.String(),
-	cwd: Type.String(),
-	status: Type.Union([
-		Type.Literal('running'),
-		Type.Literal('stopping'),
-		Type.Literal('completed'),
-		Type.Literal('failed'),
-		Type.Literal('cancelled'),
-	]),
-	startedAt: Type.Number(),
-	finishedAt: Type.Optional(Type.Number()),
-	receiptPath: Type.Optional(Type.String()),
-	persistenceError: Type.Optional(Type.String()),
-	notificationError: Type.Optional(Type.String()),
-	fullOutputPath: Type.Optional(Type.String()),
-})
-export type JobSnapshot = Static<typeof jobSnapshotSchema>

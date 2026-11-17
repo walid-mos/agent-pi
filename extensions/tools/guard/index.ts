@@ -25,7 +25,8 @@
  * arguments turn after turn, with arguments and output differing only in their
  * numbers, a tool answering with the same output turn after turn, or a tool
  * failing with the same error (numbers aside) whatever the arguments, and
- * escalates on every further repeat (refuse, end the run, abort it);
+ * escalates on every further repeat (refuse, refuse and steer, end the run,
+ * abort it);
  * fixed-delay.ts refuses a `sleep` stage between shell commands and
  * idle-command.ts a command that only echoes, assigns or reads the clock. All
  * are announced to the human; a human prompt resets the streaks.
@@ -44,7 +45,11 @@ import { READ_LEDGER_ENTRY, ReadLedger } from './read-ledger.ts'
 import { registerLookupRecovery } from './recovery.ts'
 import { RepeatGuard } from './repeat-guard.ts'
 import { scriptValidationRefusal } from './script-validation.ts'
-import { shellLookupPlan, shellLookupRefusal } from './shell-guard.ts'
+import {
+	commandText,
+	shellLookupPlan,
+	shellLookupRefusal,
+} from './shell-guard.ts'
 
 import type {
 	ExtensionAPI,
@@ -57,27 +62,18 @@ import type { LoopStop } from './repeat-guard.ts'
 function shellDecision(
 	pi: ExtensionAPI,
 	toolName: string,
-	input: unknown,
+	command: string,
 	cwd: string,
 ): { block: true; reason: string } | undefined {
-	const command = commandText(input)
 	if (isFixedDelay(command))
 		return { block: true, reason: FIXED_DELAY_REFUSAL }
 	if (isIdleCommand(command))
 		return { block: true, reason: IDLE_COMMAND_REFUSAL }
 	if (toolName === 'host')
-		return shellLookupRefusal(input, pi.getActiveTools())
-	const plan = shellLookupPlan(input, pi.getActiveTools(), cwd)
+		return shellLookupRefusal(command, pi.getActiveTools())
+	const plan = shellLookupPlan(command, pi.getActiveTools(), cwd)
 	if (plan?.kind !== 'refuse') return undefined
 	return { block: true, reason: plan.reason }
-}
-
-function commandText(input: unknown): string {
-	if (typeof input === 'object' && input !== null && 'command' in input) {
-		const { command } = input
-		if (typeof command === 'string') return command
-	}
-	return JSON.stringify(input) ?? ''
 }
 
 function wireReadLedger(pi: ExtensionAPI): void {
@@ -104,12 +100,13 @@ function wireReadLedger(pi: ExtensionAPI): void {
 	pi.on('tool_call', (event, ctx) =>
 		runTimedHook('tool_call', 'guard.lookup', async () => {
 			if (event.toolName === 'host' || event.toolName === 'bash') {
+				const command = commandText(event.input)
 				const refusal = scriptValidationRefusal(
-					commandText(event.input),
+					command,
 					Boolean(event.parentToolCallId),
 				)
 				if (refusal) return { block: true, reason: refusal }
-				return shellDecision(pi, event.toolName, event.input, ctx.cwd)
+				return shellDecision(pi, event.toolName, command, ctx.cwd)
 			}
 			if (event.parentToolCallId) return undefined
 			if (!isToolCallEventType('read', event)) return undefined

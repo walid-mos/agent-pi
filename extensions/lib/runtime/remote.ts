@@ -2,10 +2,13 @@
  * Run commands on a workspace Boat through its `ws-<hash>` ssh alias, which the
  * workspace CLI keeps current (endpoint, host key, ControlMaster, forwarded agent).
  */
-import { execFile, spawn, spawnSync } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
+
+import { quote } from '#lib/shell-quote.ts'
+
+import type { ExecOptions } from './runtime.ts'
 
 const SSH = 'ssh'
-const MAX_BUFFER_BYTES = 67_108_864
 const STOP_GRACE_MS = 2000
 const MS_PER_SECOND = 1000
 const GITHUB_TOKEN = Symbol.for('pi.workspace.github-token.v1')
@@ -31,16 +34,6 @@ export interface CaptureResult {
 	readonly exitCode: number | null
 }
 
-export interface ExecOptions {
-	readonly onData: (data: Buffer) => void
-	readonly signal?: AbortSignal
-	readonly timeout?: number
-}
-
-export function quote(text: string): string {
-	return `'${text.replaceAll("'", `'\\''`)}'`
-}
-
 export function capture(
 	host: string,
 	script: string,
@@ -62,22 +55,6 @@ export function capture(
 		)
 		child.stdin.end(input)
 	})
-}
-
-export function captureSync(host: string, script: string): CaptureResult {
-	const finished = spawnSync(
-		SSH,
-		[host, '--', 'bash', '-lc', quote(script)],
-		{
-			maxBuffer: MAX_BUFFER_BYTES,
-		},
-	)
-	if (finished.error) throw finished.error
-	return {
-		stdout: finished.stdout,
-		stderr: finished.stderr.toString('utf8'),
-		exitCode: finished.status,
-	}
 }
 
 export async function exec(
