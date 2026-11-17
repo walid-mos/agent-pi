@@ -1,13 +1,18 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { resolveCodexGroup } from '#lib/magpie-codex.ts'
+
 import { parseJsonRecord, readString } from './lib-json-fields.ts'
 import { describeFailure, runProcess } from './lib-process.ts'
 
 import type { ReplyCheck } from './lib-backend-claude.ts'
 import type { AdvisorState } from './lib-state.ts'
 
-export const PI_DEFAULT_ADVISOR_MODEL = 'openai-codex/gpt-6.1-sol:high'
+export function defaultPiAdvisorModel(providersPath?: string): string {
+	const model = resolveCodexGroup('expert', providersPath)
+	return `${model.provider}/${model.id}:${model.thinkingLevel}`
+}
 export const PI_SESSION_DIRECTORY = 'pi'
 
 export const PI_ISOLATION = [

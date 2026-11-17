@@ -15,7 +15,7 @@ import {
 	CLAUDE_DEFAULT_MODEL,
 } from './lib-backend-claude.ts'
 import {
-	PI_DEFAULT_ADVISOR_MODEL,
+	defaultPiAdvisorModel,
 	PI_SESSION_DIRECTORY,
 	resolvePiModel,
 } from './lib-backend-pi.ts'
@@ -93,7 +93,7 @@ function chooseBackend(request: InitRequest): Backend {
 
 function resolveModel(request: InitRequest, backend: Backend): string {
 	if (backend === 'claude') return request.model ?? CLAUDE_DEFAULT_MODEL
-	const selector = request.model ?? PI_DEFAULT_ADVISOR_MODEL
+	const selector = request.model ?? defaultPiAdvisorModel()
 	const resolution = resolvePiModel(selector, request.cwd)
 	if (resolution.kind !== 'resolved')
 		throw new Error(describeResolution(resolution, selector))
