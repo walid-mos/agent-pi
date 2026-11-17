@@ -1,6 +1,6 @@
 # Pot access
 
-Extends "Before a job" in `SKILL.md`. These scripts prepare access without starting a billed sandbox.
+Extends "Before a job" in `SKILL.md`. These scripts prepare access without starting a billed sandbox. Before creating a temporary skill preview or saving an account/status probe, register its ownership and teardown through [local temporary ownership](operations.md#local-temporary-ownership).
 
 ## Operator on the Mac
 
