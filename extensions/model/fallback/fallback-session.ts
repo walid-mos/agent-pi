@@ -228,7 +228,7 @@ export class FallbackSession {
 		failedModel: string | undefined,
 		thinkingLevel: ModelThinkingLevel,
 	): void {
-		if (!this.isOnFallback) this.originalThinkingLevel = thinkingLevel
+		this.originalThinkingLevel ??= thinkingLevel
 		this.restoreTarget ??= failedModel
 		this.isOnFallback = true
 	}
@@ -238,7 +238,7 @@ export class FallbackSession {
 		return this.restoreTarget
 	}
 
-	restoreThinkingLevel(): ModelThinkingLevel | undefined {
+	thinkingLevelToRestore(): ModelThinkingLevel | undefined {
 		return this.originalThinkingLevel
 	}
 

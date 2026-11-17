@@ -74,7 +74,7 @@ async function returnToOriginal(
 		session.forgetSwitch(reference)
 		return false
 	}
-	const thinkingLevel = session.restoreThinkingLevel()
+	const thinkingLevel = session.thinkingLevelToRestore()
 	if (thinkingLevel) pi.setThinkingLevel(thinkingLevel)
 	endFallback(ctx, session)
 	return true
@@ -167,8 +167,8 @@ export async function performFailover(
 	if (!switched) return undefined
 	if (ctx.signal?.aborted || sessionId !== ctx.sessionManager.getSessionId())
 		return undefined
-	const candidate = switched.reference
-	session.markFallbackActive(failure.model, switched.previousThinkingLevel)
+	const { reference: candidate, previousThinkingLevel } = switched
+	session.markFallbackActive(failure.model, previousThinkingLevel)
 	reportFallback(ctx, failure, candidate)
 	return {
 		entries: ctx.hasPendingMessages()
@@ -193,8 +193,8 @@ export async function failoverAfterAbort(
 	const sessionId = ctx.sessionManager.getSessionId()
 	const switched = await switchToNextModel(pi, ctx, session, failure)
 	if (!switched || sessionId !== ctx.sessionManager.getSessionId()) return
-	const candidate = switched.reference
-	session.markFallbackActive(failure.model, switched.previousThinkingLevel)
+	const { reference: candidate, previousThinkingLevel } = switched
+	session.markFallbackActive(failure.model, previousThinkingLevel)
 	reportFallback(ctx, failure, candidate)
 	pi.sendMessage(continuationAfterFailover(ctx, failure, candidate), {
 		triggerTurn: true,

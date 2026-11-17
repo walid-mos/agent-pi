@@ -16,10 +16,6 @@ type FallbackTarget = {
 	thinkingLevel: ModelThinkingLevel | undefined
 }
 
-const NOT_IN_REGISTRY =
-	'not in the Pi model registry. Add its capability entry to models.pinned.json.'
-const UNSUPPORTED_EFFORT = 'does not support the group effort'
-
 export function findChainModel(
 	registry: Pick<Registry, 'find'>,
 	reference: string,
@@ -38,12 +34,12 @@ function codexTarget(
 	const model = registry.find(selection.provider, selection.id)
 	if (!model)
 		throw new Error(
-			`${selection.provider}/${selection.id} ${NOT_IN_REGISTRY}`,
+			`${selection.provider}/${selection.id} not in the Pi model registry. Add its capability entry to models.pinned.json.`,
 		)
 	if (!registry.hasConfiguredAuth(model)) return undefined
 	if (!getSupportedThinkingLevels(model).includes(selection.thinkingLevel))
 		throw new Error(
-			`${modelReference(model)} ${UNSUPPORTED_EFFORT} ${selection.thinkingLevel}.`,
+			`${modelReference(model)} does not support the group effort ${selection.thinkingLevel}.`,
 		)
 	return {
 		reference: modelReference(model),
@@ -61,20 +57,6 @@ function plainTarget(
 	return { reference: modelReference(model), model, thinkingLevel: undefined }
 }
 
-function resolveTarget(
-	reference: string,
-	registry: Registry,
-	providersPath: string | undefined,
-): FallbackTarget | undefined {
-	if (reference.startsWith(CODEX_GROUP_PREFIX))
-		return codexTarget(
-			reference.slice(CODEX_GROUP_PREFIX.length),
-			registry,
-			providersPath,
-		)
-	return plainTarget(reference, registry)
-}
-
 export function resolveFallbackChain(
 	chain: readonly string[],
 	registry: Registry,
@@ -83,7 +65,13 @@ export function resolveFallbackChain(
 ): FallbackTarget[] {
 	return chain.flatMap(reference => {
 		try {
-			const target = resolveTarget(reference, registry, providersPath)
+			const target = reference.startsWith(CODEX_GROUP_PREFIX)
+				? codexTarget(
+						reference.slice(CODEX_GROUP_PREFIX.length),
+						registry,
+						providersPath,
+					)
+				: plainTarget(reference, registry)
 			return target ? [target] : []
 		} catch (error) {
 			warn(`Fallback: skipped ${reference}: ${errorText(error)}`)
