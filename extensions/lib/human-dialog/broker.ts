@@ -9,6 +9,7 @@ const POLL_INTERVAL_MS = 700
 
 export class BrokerDialog {
 	readonly id: string
+	private deliveryId: string | undefined
 
 	constructor(
 		readonly request: BrokerRequest,
@@ -29,7 +30,9 @@ export class BrokerDialog {
 		let id: string | undefined
 		if (operation !== 'open') id = this.id
 		const receipt = await this.transport(operation, id, input, signal)
-		return checkedReceipt(receipt, this.request)
+		const checked = checkedReceipt(receipt, this.request, this.deliveryId)
+		this.deliveryId ??= checked.delivery?.id
+		return checked
 	}
 
 	async wait(signal: AbortSignal): Promise<BrokerReceipt> {

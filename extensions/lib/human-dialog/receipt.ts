@@ -40,6 +40,7 @@ export function questionDigest(request: QuestionRequest): string {
 export function checkedReceipt(
 	raw: unknown,
 	request: BrokerRequest,
+	deliveryId?: string,
 ): BrokerReceipt {
 	if (!Value.Check(BrokerReceiptSchema, raw))
 		throw new Error(
@@ -54,7 +55,13 @@ export function checkedReceipt(
 		throw new Error(
 			'Human dialog broker receipt does not match this tool call.',
 		)
-	checkResult(raw, request)
+	const observed = raw.delivery?.id
+	if (observed && deliveryId && observed !== deliveryId)
+		throw new Error(
+			'Human dialog broker changed the registered request of this dialog. Open a new call.',
+		)
+	const registered = deliveryId ?? observed
+	checkResult(raw, request, registered)
 	const receipt: BrokerReceipt = {
 		id: raw.id,
 		kind: raw.kind,
@@ -65,7 +72,11 @@ export function checkedReceipt(
 	return receipt
 }
 
-function checkResult(receipt: BrokerReceipt, request: BrokerRequest): void {
+function checkResult(
+	receipt: BrokerReceipt,
+	request: BrokerRequest,
+	deliveryId: string | undefined,
+): void {
 	const { result: outcome } = receipt
 	if (!outcome) return
 	if (outcome.status === 'stored' && request.kind !== 'secret')
@@ -73,7 +84,7 @@ function checkResult(receipt: BrokerReceipt, request: BrokerRequest): void {
 			'Human dialog broker returned a secret receipt for a question.',
 		)
 	if (outcome.status === 'stored' && request.kind === 'secret')
-		checkSecretTarget(outcome, request.target, receipt)
+		checkSecretTarget(outcome, request.target, receipt, deliveryId)
 	if (outcome.status !== 'answered') return
 	if (
 		request.kind !== 'question' ||
@@ -86,7 +97,7 @@ function checkResult(receipt: BrokerReceipt, request: BrokerRequest): void {
 		)
 	checkAnswers(request, outcome.answers)
 	if (outcome.origin === 'discord') {
-		if (outcome.request !== receipt.delivery?.id)
+		if (!deliveryId || outcome.request !== deliveryId)
 			throw new Error(
 				'Discord answer does not match its registered broker request.',
 			)
@@ -98,10 +109,11 @@ function checkSecretTarget(
 	outcome: Extract<BrokerResult, { status: 'stored' }>,
 	target: BrokerTarget,
 	receipt: BrokerReceipt,
+	deliveryId: string | undefined,
 ): void {
 	if (
 		outcome.dialog !== receipt.id ||
-		(outcome.request && outcome.request !== receipt.delivery?.id)
+		(outcome.request && outcome.request !== deliveryId)
 	)
 		throw new Error(
 			'Secret receipt does not match this dialog and its registered request. Open a new call.',

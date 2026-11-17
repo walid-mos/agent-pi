@@ -3,6 +3,10 @@ import { test } from 'node:test'
 
 import { BrokerDialog } from '../extensions/lib/human-dialog/broker.ts'
 import { bindCompletion } from '../extensions/lib/human-dialog/completion.ts'
+import {
+	dialogId,
+	questionDigest,
+} from '../extensions/lib/human-dialog/receipt.ts'
 
 import type { BrokerRequest } from '../extensions/lib/human-dialog/schema.ts'
 
@@ -25,6 +29,54 @@ const request: BrokerRequest = {
 		},
 	],
 }
+
+test('rejects an answer rebound to a delivery the dialog never registered', async () => {
+	const pinned = dialogId(request)
+	const answered = {
+		status: 'answered',
+		origin: 'discord',
+		answers: [{ id: 'target', labels: ['Preview'], text: '' }],
+		dialog: pinned,
+		request: 'door-b',
+		digest: questionDigest(request),
+		at: 1,
+		evidence: {
+			clicks: [
+				{
+					question: 'target',
+					userId: '10000000000000001',
+					guildId: '20000000000000002',
+					messageUrl:
+						'https://discord.com/channels/20000000000000002/30000000000000003/40000000000000004',
+					at: '2026-11-01T00:00:00.000Z',
+				},
+			],
+		},
+	} as const
+	const replies = [
+		{
+			id: pinned,
+			kind: 'question',
+			policy: 'ordinary',
+			delivery: { id: 'door-a' },
+		},
+		{
+			id: pinned,
+			kind: 'question',
+			policy: 'ordinary',
+			delivery: { id: 'door-b' },
+			result: answered,
+		},
+	] as const
+	let index = 0
+	const dialog = new BrokerDialog(request, async () => {
+		const reply = replies[index]
+		index += 1
+		return reply
+	})
+	await dialog.open()
+	await assert.rejects(dialog.perform('get'), /registered request/)
+})
 
 test('rejects a receipt for another tool call before completing the local dialog', async () => {
 	const dialog = new BrokerDialog(request, async () => ({
