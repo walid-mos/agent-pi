@@ -31,7 +31,10 @@ const capture = {
 				type: 'message',
 				id: 'old-turn',
 				timestamp: '2026-11-16T23:59:00Z',
-				message: { role: 'assistant', usage: { input: 300 } },
+				message: {
+					role: 'assistant',
+					usage: { input: 300, output: 20 },
+				},
 			},
 			{
 				type: 'message',

@@ -1,24 +1,18 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { measuredDay, measuredTokens } from './session-measurement.ts'
+
 import type { Static } from 'typebox'
 
-const DAY_LENGTH = 10
 const unknown = Type.Unknown()
-const token = Type.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER })
 const nonblank = Type.String({ pattern: /\S/.source })
 const entrySchema = Type.Object({
 	type: Type.String(),
 	timestamp: Type.String(),
 })
-const messageSchema = Type.Object({ message: Type.Object({ role: nonblank }) })
-const assistantSchema = Type.Object({
-	usage: Type.Optional(
-		Type.Object({
-			input: Type.Optional(token),
-			output: Type.Optional(token),
-		}),
-	),
+const messageSchema = Type.Object({
+	message: Type.Object({ role: nonblank, usage: Type.Optional(unknown) }),
 })
 const dumpSchema = Type.Object(
 	{
@@ -44,19 +38,13 @@ export type DumpEvidence = {
 	outputTokens: number
 }
 
-function utcDay(timestamp: string): string {
-	const instant = Date.parse(timestamp)
-	if (!Number.isFinite(instant)) throw new Error('Invalid Pi dump date')
-	return new Date(instant).toISOString().slice(0, DAY_LENGTH)
-}
-
 export function parseDumpEvidence(
 	candidate: unknown,
 	day: string,
 ): DumpEvidence {
 	if (!Value.Check(dumpSchema, candidate))
 		throw new Error('Unexpected fields in Pi dump')
-	if (utcDay(candidate.capturedAt) !== day)
+	if (measuredDay(candidate.capturedAt) !== day)
 		throw new Error('Pi dump date does not match requested UTC day')
 	const { session } = candidate
 	if (!session.id.trim() || session.header.id !== session.id)
@@ -66,14 +54,12 @@ export function parseDumpEvidence(
 
 function assistantMessage(
 	entry: Static<typeof entrySchema>,
-): Static<typeof assistantSchema> | undefined {
+): Static<typeof messageSchema>['message'] | undefined {
 	if (entry.type !== 'message') return undefined
 	if (!Value.Check(messageSchema, entry))
 		throw new Error('Invalid Pi dump message or role')
 	const { message } = entry
 	if (message.role !== 'assistant') return undefined
-	if (!Value.Check(assistantSchema, message))
-		throw new Error('Invalid Pi dump assistant usage')
 	return message
 }
 
@@ -87,12 +73,14 @@ function summarizeEntries(
 	let outputTokens = 0
 	for (const entry of entries) {
 		const message = assistantMessage(entry)
-		if (utcDay(entry.timestamp) !== day) continue
+		const entryDay = measuredDay(entry.timestamp)
+		const tokens = message && measuredTokens(message.usage, 'pi')
+		if (entryDay !== day) continue
 		if (entry.type === 'compaction') compactions++
-		if (!message) continue
+		if (!tokens) continue
 		turns++
-		inputTokens += message.usage?.input ?? 0
-		outputTokens += message.usage?.output ?? 0
+		inputTokens += tokens.input
+		outputTokens += tokens.output
 	}
 	if (
 		!Number.isSafeInteger(inputTokens) ||

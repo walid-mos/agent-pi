@@ -75,6 +75,50 @@ void test('dump parser rejects blank matching IDs and malformed message bodies o
 	}
 })
 
+void test('approved dump refuses invalid calendar dates, missing offsets and unmeasured assistant turns', async context => {
+	const cases = [
+		{ timestamp: '2026-06-31T22:00:00Z' },
+		{ timestamp: `${day}T00:30:00` },
+		{ usage: undefined },
+		{ usage: { input: 300 } },
+	]
+	await Promise.all(
+		cases.map(async ({ timestamp = capturedAt, ...messageOverride }) => {
+			const input = fixture(context)
+			const evidenceDay = timestamp.startsWith('2026-06-31')
+				? '2026-07-01'
+				: day
+			const entries = [
+				{
+					type: 'message',
+					timestamp,
+					message: {
+						role: 'assistant',
+						usage: { input: 300, output: 100 },
+						...messageOverride,
+					},
+				},
+			]
+			writeFileSync(
+				input.filePath,
+				JSON.stringify({
+					...capture,
+					capturedAt: `${evidenceDay}T23:00:00Z`,
+					session: { ...capture.session, entries },
+				}),
+			)
+			assert.deepEqual(
+				await readApprovedDump({ ...input, day: evidenceDay }),
+				{
+					permitId: 'permit-7',
+					status: 'denied',
+					reason: 'file_refused',
+				},
+			)
+		}),
+	)
+})
+
 void test('approved dump refuses malformed UTF-8 in an otherwise opaque field', async context => {
 	const input = fixture(context)
 	const contents = JSON.stringify({ ...capture, prompt: 'BYTE_FIXTURE' })
