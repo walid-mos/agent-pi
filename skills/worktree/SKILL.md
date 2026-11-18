@@ -41,12 +41,13 @@ Verify: `git -C <checkout> branch --show-current` names the branch, and its `HEA
 
 ## Open the draft pull request
 
-Once the checkout exists, created or reused, start `scripts/draft-pr '<checkout>' '<title>' [<base>]` as a background job and go on without waiting. Its completion prints the pull request URL; a failure goes into the report while the worktree stays usable.
+Once the checkout exists, created or reused, start `scripts/draft-pr '<checkout>' '<title>' --description '<public Markdown>' [<base>]` as a background job and go on without waiting. Its completion prints the pull request URL; a failure goes into the report while the worktree stays usable.
 
 - **Title**: a commit subject in the repository's format (Repository Git conventions in `~/.pi/agent/AGENTS.md`) naming the task's single intention. It becomes the squash commit, so retitle the pull request when the intention changes.
+- **Description**: required; the script refuses a missing or blank one before touching Git or GitHub. Write a short public Markdown summary for anyone who can read the repository: the purpose, the intended behavior, and the checks planned or not yet run. Write it fresh, never from the brief or the user's request, and leave out private request text, IDs, local paths and secrets. It becomes the pull request body at creation. Pass it as one argument, from an OS-temp file with `--description "$(<'<file>')"`.
 - **Base**: omit it for the repository's default branch; pass the caller's branch when the work stacks on it.
 - It pushes the branch, adding an empty commit with the title as its message when the branch has no commit of its own yet. Commit and push hooks stay enabled; if their prerequisites are missing, report the failed command and complete the repository setup before retrying. Where a project `AGENTS.md` requires approval before a push, obtain it before starting the job.
-- A branch that already has an open pull request gets its URL back, never a second one.
+- A branch that already has an open pull request gets its URL back, never a second one; its title and body stay as they are.
 
 ## Clean up ended pull requests
 
