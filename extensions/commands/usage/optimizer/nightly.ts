@@ -6,10 +6,14 @@ import {
 	parisSlotState,
 	timestampOf,
 } from './closed-utc-day.ts'
-import { readDailyFacts, USAGE_CONTRACT_REVISION } from './daily-usage.ts'
+import {
+	readDailyFacts,
+	USAGE_CONTRACT_REVISION,
+	usageFacts as publicationFacts,
+} from './daily-usage.ts'
 import { runProposal } from './proposal.ts'
 
-import type { DailyUsageContract } from './daily-usage.ts'
+import type { DailyUsage, DailyUsageContract } from './daily-usage.ts'
 import type {
 	Fact,
 	ModelAdapter,
@@ -24,7 +28,7 @@ export const sessionSourceSchema = Type.Union([
 	Type.Literal('pi'),
 	Type.Literal('claude-code'),
 ])
-const sessionSchema = Type.Object(
+export const sessionSchema = Type.Object(
 	{
 		hostId: hostIdSchema,
 		day: Type.String(),
@@ -38,9 +42,14 @@ const sessionSchema = Type.Object(
 	{ additionalProperties: false },
 )
 
+export type PublishedUsage =
+	| { status: 'missing' | 'invalid' }
+	| { status: 'delivered'; usage: DailyUsage }
+
 export type HostInput = {
 	hostId: string
 	snapshot?: unknown
+	publication?: PublishedUsage
 	approvedSources: readonly ('pi' | 'claude-code')[]
 	sessions: readonly unknown[]
 }
@@ -58,6 +67,14 @@ function usageEvidence(
 	contract: DailyUsageContract,
 	day: string,
 ): Pick<HostCoverage, 'usage'> & { usageFacts: Fact[] } {
+	const published = host.publication
+	if (published)
+		return published.status === 'delivered'
+			? {
+					usage: 'valid',
+					usageFacts: publicationFacts(published.usage, host.hostId),
+				}
+			: { usage: published.status, usageFacts: [] }
 	if (!Object.hasOwn(host, 'snapshot'))
 		return { usage: 'missing', usageFacts: [] }
 	try {

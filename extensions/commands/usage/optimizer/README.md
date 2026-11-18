@@ -6,13 +6,19 @@
 
 The composition entry point takes the reviewed Usage #2 `decodeSnapshot` from `pipeline/dailySnapshot.ts` at `USAGE_CONTRACT_REVISION` in `daily-usage.ts`. The decoder validates the exact host and date and rejects fields outside the published contract. Keep the production adapter pinned to the published source. The revision field comes from the trusted composition code. It is not an attestation that an arbitrary module has the expected source.
 
-Use 02:00 Europe/Paris as the intended slot. The local scheduler supplies the first valid slot after the spring gap and identifies each occurrence of the autumn fold. `runNightly` records the slot and uses the latest closed UTC day at that slot. A retry or wake catch-up passes the original slot and the actual invocation time. Both autumn occurrences resolve to the same UTC day. Missing snapshots, invalid snapshots, missing summaries and unapproved sources appear in coverage. Any incomplete host skips the model. Summer uploads may still be pending at UTC midnight. Retry explicitly against the original day.
+The scheduled command uses the latest due 02:00 Europe/Paris slot, 03:00 on the spring transition, and the first 02:00 on the autumn transition. `runNightly` records that slot and uses the latest closed UTC day at that instant. Summer 02:00 coincides with UTC midnight, when snapshots and session aggregates may still be pending. A scheduled tick retries the same day until the next slot is due. After a longer outage, run any older slot explicitly. Missing snapshots, invalid snapshots, missing summaries and unapproved sources appear in coverage. Any incomplete host skips the model.
 
 R2 version 1 supplies daily aggregates only. Counts and token totals from native sessions may overlap with the usage ledger. Compare each source on its own. API-equivalent estimates do not measure subscription charges or allowance.
 
 ## Owner-side reads
 
-The owner verifies paths, format, identity and coverage in each environment. Pi stores native JSONL in `~/.pi/agent/sessions`. Claude Code stores native JSONL in `~/.claude/projects`. Supply lines from approved files to `parseNativeSessionFile` on that host. An owner-side reader must establish store coverage, exclude Claude backend sessions launched by Magpie and consolidate each approved source into one daily summary. Keep raw session files and timestamps, paths, identifiers, prompts, arguments and results on the owner host. The nightly input accepts aggregates for the source labels configured for that host. It rejects extra fields and mismatched dates or host labels. The existing owner transport supplies the verified origin. No new transport is required.
+On each Mac or pot, the owner verifies the enrolled host ID, UTC-day coverage, format and exact files. Pi stores native JSONL in `~/.pi/agent/sessions`. Claude Code stores native JSONL in `~/.claude/projects`. Exclude Claude backend sessions launched by Magpie. Create an owner-controlled manifest with `hostId`, `day`, `source` (`pi` or `claude-code`) and `files`, an array of canonical absolute JSONL paths. Use an empty array only when the owner has verified that the source had no sessions for that day.
+
+```sh
+node extensions/commands/usage/optimizer/export-owner-sessions.ts /absolute/approved.json 2026-10-24 /absolute/aggregate-outbox
+```
+
+The command uses the native parser on that host and writes a numeric aggregate to `<hostId>.<UTC day>.<source>.json`. Verify a synthetic export under the owning login and confirm that the authorized owner route delivers that exact aggregate to its configured receiver. Transfer only the aggregate. Manifests, raw sessions and dumps stay on the originating host. The receiver verifies provenance through the existing route before staging the result. Leave the corresponding file absent when a host or source has no approved route.
 
 The Pi `/dump` format has a separate structural check and stays outside the nightly feed. `readApprovedDump` runs only in the owner environment. Pass the permit from the owner's approval record and the expected scope from the owner-side caller. Supply the owner approval store's atomic consume operation. It returns success only for the exact unspent approved record and denies revoked or consumed permits. The permit binds an opaque permit ID, host, `pi-dump` source, canonical absolute file, `read` operation and expiry. The check returns the permit ID and day-limited counts or a denial code. Use a regular file in an owner-controlled directory with no concurrent writers. Keep the file, its path and its contents on the owner host. A permit for one file authorizes that structural read only. Any subsequent read, another source, excerpts or model submission needs its own approval.
 
@@ -26,7 +32,7 @@ The Pi `/dump` format has a separate structural check and stays outside the nigh
 | --- | --- |
 | Environment, sourced files and lookup paths | The child gets a fixed environment with explicit owner profile and working paths. The runner executes an absolute binary directly. The stub fixture plants provider, proxy, and shell overrides and checks the actual child environment. |
 | Config and tool subprocesses | Start in a private empty directory with safe and restricted modes, strict empty MCP configuration, connectors off, and an empty built-in tool list. The stub checks the actual arguments. Managed policy still applies. The owner reviews effective settings and credential helpers under the job account before approving the run. |
-| Shared files and shell evaluation | Owner-controlled input and output directories stay outside the child workspace. The runner passes only the model's numeric evidence on stdin. The stub plants extra fields and instruction text. |
+| Shared files and shell evaluation | The approved collector, pinned reader and owner configuration are trusted. The local collector reads known object keys and approved source slots, with bounded regular-file reads. Raw session files are accepted only by the local export command using the owner's explicit manifest. Owner-controlled input and output directories stay outside the child workspace. The runner passes only the model's numeric evidence on stdin. The stub plants extra fields and instruction text. |
 | Output | Check model identity in the CLI result envelope and allow only reviewed recommendations. Suppress raw CLI stdout and stderr in diagnostics. The stub proves rejection of missing, fallback, mixed, and forged metadata. |
 | Process inspection, privilege and network | The runner trusts the owner login and executable. It does not isolate mutually untrusted same-user processes or restrict the CLI's network at OS level. Use the runner only in the verified owner job context. |
 
@@ -38,18 +44,23 @@ Run with Node 24 or later under the owner login using a clean launcher environme
 node extensions/commands/usage/optimizer/owner-cli.ts /absolute/path/owner.json 2026-10-25T02:00:00+02:00
 ```
 
-Keep the configuration and report directory private to the owner account. Give the authorized feed producer access only to its handoff location. Configure these fields:
+For the recurring job, substitute absolute paths in `nightly.launchagent.plist` and use the owner’s login LaunchAgent. Its interval and load triggers call the same command with `--scheduled`. The runner calculates Paris time independently of the machine’s time zone. The polling interval sets scheduling precision. Before activation, the Mac owner runs `plutil -lint`, verifies the Node path and job login, then checks a disposable invocation after wake, UTC midnight and reload. Keep live print approval off during those checks.
+
+Keep the configuration and report directory private to the owner account. Let the authorized feed producer write only to the handoff location. Choose one input layout.
 
 | Key | Value |
 | --- | --- |
-| `feedDirectory` | Absolute path to the authorized aggregate handoff directory. |
+| `stagedEvidence.snapshots`, `stagedEvidence.sessions` | Absolute canonical directories for exact Usage #2 objects and approved session aggregates. |
+| `feedDirectory` | Alternative absolute path to the combined aggregate handoff. |
 | `reportDirectory` | Absolute path to an existing owner-controlled report directory. |
 | `usageContract.revision`, `usageContract.module` | The `USAGE_CONTRACT_REVISION` in `daily-usage.ts` and the absolute path to the corresponding reviewed module exporting `decodeSnapshot`. The owner installs and verifies the pinned module and its imports. |
 | `hosts` | Objects with `hostId` and `approvedSources`, drawn from the owner's enrolled roster and approvals. |
 | `nativeClaude.executable`, `nativeClaude.home`, `nativeClaude.configDirectory` | Absolute paths for the reviewed native Claude executable, owner home, and signed-in profile. |
 | `nativeClaude.isPrintApproved` | Set to `true` after verifying the job account, settings, and paid usage policy. `false` refuses print mode. |
 
-The trusted collector atomically publishes `<UTC day>.json` in `feedDirectory` with `{ "day": "YYYY-MM-DD", "hosts": [...] }`. Each host entry carries `hostId`, the optional Usage #2 `snapshot`, and `sessions`, an array of daily summaries from that host's approved native sources. The producer uses the existing owner transport to establish origin before publishing the handoff. The runner takes the roster and source approvals from `owner.json`. Keep dumps, raw sessions, and collection credentials in the owning environment. No raw-reader or network credentials are needed by the nightly entry point.
+In staged mode the runner loads the sibling `pipeline/readDailyPublication.ts` from the pinned Usage #2 checkout. Its store reads the exact object keys from the snapshot directory, using the byte limit supplied by the pinned decoder. An authorized private R2 reader must stage the exact object bytes atomically under the same keys. The reviewed producer grants authorize PUT. Live deployment needs a separately authorized exact-key read connection and a verified delivery into the owner’s snapshot directory. The runner reports absent objects as missing and malformed objects as invalid. It requires no dashboard or R2 credential. Stage only source aggregates approved for the host in `owner.json`.
+
+A combined handoff atomically publishes `<UTC day>.json` in `feedDirectory` with `{ "day": "YYYY-MM-DD", "hosts": [...] }`. Each host entry carries `hostId`, an optional Usage #2 `snapshot`, and `sessions` with its approved source aggregates.
 
 A missing handoff produces a partial coverage report without invoking Claude. The first partial report stays on disk. Retry the original slot after the feed arrives or after resolving a failure in the checks that run before print. Use the same report directory for every invocation. A daily lock prevents overlap, and a complete report skips Claude, including on the second occurrence of the autumn fold.
 
@@ -68,6 +79,8 @@ Safe mode preserves the saved login and restricted mode excludes user, project a
 The Mac owner also verifies Keychain access, model eligibility, the plan or seat, allowance, paid credit settings, and approval to disclose the aggregate fields. Print mode can spend credits without prompting. The documented CLI contracts expose neither a preflight proof of the model that will serve the prompt nor a subscription-only guarantee that prevents paid print usage. `auth status` checks sign-in, and the response metadata checks which model actually served the run. A separate owner-authorized synthetic run can verify the effective flags, metadata, and billing in the job context. [Authentication](https://code.claude.com/docs/en/authentication), [print mode](https://code.claude.com/docs/en/headless)
 
 ## Offline proof
+
+The scheduler fixture drives the executable at summer midnight, after a missed wake, at the spring gap and across both autumn occurrences. The staged fixture runs a local session export, verifies missing and invalid host coverage, and retries the original evidence day with the stub Claude CLI. Point `NIGHTLY_USAGE_PINNED_PIPELINE` at the `pipeline` directory extracted from `USAGE_CONTRACT_REVISION` to run it with the actual `readDailyPublication` and its imports. The generated dump fixture exercises representative nested fields and a capture over 5 MB. A separate fixture tests the 16 MiB file bound. The owner’s structural observation establishes the reported Mac file’s shape and size. The real file’s parser result, entry timestamps, identity equality and token values are unverified.
 
 Run `node --experimental-transform-types --test tests/nightly-usage-optimizer.test.ts 'tests/optimizer-*.test.ts'`. The tests use only synthetic JSONL, a disposable Pi dump, a disposable report directory and a fixture model. To exercise the original Usage #2 validator, extract `pipeline/dailySnapshot.ts` and its local imports from `USAGE_CONTRACT_REVISION` into a disposable directory, set `NIGHTLY_FIXTURE_VALIDATOR` to the absolute validator path and run `tests/optimizer-nightly-flow.test.ts` with the same Node options.
 

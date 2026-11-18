@@ -15,6 +15,8 @@ type Totals = {
 	}
 }
 
+export type DailyUsage = { workload: Totals; 'routing-overhead': Totals }
+
 export type DailyUsageContract = {
 	revision: string
 	decodeSnapshot: (
@@ -22,7 +24,7 @@ export type DailyUsageContract = {
 		hostId: string,
 		day: string,
 	) => {
-		usage: { workload: Totals; 'routing-overhead': Totals }
+		usage: DailyUsage
 	}
 }
 
@@ -32,7 +34,13 @@ export function readDailyFacts(
 	hostId: string,
 	day: string,
 ): Fact[] {
-	const { usage } = contract.decodeSnapshot(snapshot, hostId, day)
+	return usageFacts(
+		contract.decodeSnapshot(snapshot, hostId, day).usage,
+		hostId,
+	)
+}
+
+export function usageFacts(usage: DailyUsage, hostId: string): Fact[] {
 	return [
 		...totalsFacts(`${hostId}.workload`, usage.workload),
 		...totalsFacts(`${hostId}.routing-overhead`, usage['routing-overhead']),

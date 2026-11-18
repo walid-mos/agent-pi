@@ -1,5 +1,6 @@
 const UTC_DAY_LENGTH = 10
 const HOUR_MS = 3_600_000
+const MAX_SLOT_LOOKBACK_HOURS = 25
 const SCHEDULE_HOUR = '02'
 const GAP_RECOVERY_HOUR = '03'
 const OFFSET_TIMESTAMP =
@@ -32,7 +33,25 @@ export function latestClosedUtcDay(invokedAt: string): string {
 }
 
 export function parisSlotState(invokedAt: string): ParisSlotState {
-	const instant = timestampOf(invokedAt)
+	const slot = parisSlotAt(timestampOf(invokedAt))
+	if (slot) return slot
+	throw new Error('Expected a 02:00 Europe/Paris slot or its DST recovery')
+}
+
+export function latestParisSlot(now: string): string {
+	const hour = Math.floor(timestampOf(now) / HOUR_MS) * HOUR_MS
+	for (let offset = 0; offset <= MAX_SLOT_LOOKBACK_HOURS; offset += 1) {
+		const candidate = hour - offset * HOUR_MS
+		const slot = parisSlotAt(candidate)
+		if (slot)
+			return new Date(
+				slot === 'autumn-fold-second' ? candidate - HOUR_MS : candidate,
+			).toISOString()
+	}
+	throw new Error('No due Europe/Paris slot within the daily lookback')
+}
+
+function parisSlotAt(instant: number): ParisSlotState | undefined {
 	const localTime = parisClock.format(instant)
 	const previousHour = parisClock.format(instant - HOUR_MS)
 	const nextHour = parisClock.format(instant + HOUR_MS)
@@ -47,5 +66,5 @@ export function parisSlotState(invokedAt: string): ParisSlotState {
 		previousHour === '01:00:00'
 	)
 		return 'spring-gap-recovery'
-	throw new Error('Expected a 02:00 Europe/Paris slot or its DST recovery')
+	return undefined
 }

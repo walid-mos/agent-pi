@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import {
 	latestClosedUtcDay,
+	latestParisSlot,
 	parisSlotState,
 	timestampOf,
 } from './closed-utc-day.ts'
@@ -17,17 +18,22 @@ import {
 } from './owner-input.ts'
 import { recordPrintAttempt } from './print-attempt.ts'
 import { NATIVE_MODEL_ID } from './proposal.ts'
+import { readStagedEvidence } from './staged-evidence.ts'
 
 const USAGE =
-	'Usage: node owner-cli.ts ABSOLUTE_OWNER_CONFIG INTENDED_PARIS_SLOT_ISO'
+	'Usage: node owner-cli.ts ABSOLUTE_OWNER_CONFIG INTENDED_PARIS_SLOT_ISO|--scheduled'
 const CLI_ARGUMENT_START = 2
 const PRIVATE_DIRECTORY_MODE = 0o700
 
 async function runOwnerNightly(
 	configPath: string,
-	intendedSlot: string,
+	requestedSlot: string,
 ): Promise<string> {
 	const actualInvocation = new Date().toISOString()
+	const intendedSlot =
+		requestedSlot === '--scheduled'
+			? latestParisSlot(actualInvocation)
+			: requestedSlot
 	parisSlotState(intendedSlot)
 	if (timestampOf(actualInvocation) < timestampOf(intendedSlot))
 		throw new Error(
@@ -49,7 +55,9 @@ async function runOwnerNightly(
 		const report = await runNightly({
 			intendedSlot,
 			actualInvocation,
-			hosts: await readOwnerHandoff(config, day),
+			hosts: config.stagedEvidence
+				? await readStagedEvidence(config, config.stagedEvidence, day)
+				: await readOwnerHandoff(config, day),
 			contract: await loadOwnerDecoder(config),
 			selection: { selector: NATIVE_MODEL_ID, isVerified: true },
 			modelAdapter: nativeClaude(config.nativeClaude, lock, () =>
