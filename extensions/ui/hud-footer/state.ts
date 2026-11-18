@@ -12,6 +12,7 @@ export type FooterState = {
 	isEnabled: boolean
 	requestRender: (() => void) | null
 	quotaCache: QuotaCache
+	magpieModel: string | undefined
 	quotaTimer: ReturnType<typeof setInterval> | null
 	tariffCache: DeepseekTariff | null
 	gitCache: GitStatus | null
@@ -29,6 +30,7 @@ export const footerState: FooterState = {
 	isEnabled: true,
 	requestRender: null,
 	quotaCache: {},
+	magpieModel: undefined,
 	quotaTimer: null,
 	tariffCache: null,
 	gitCache: null,

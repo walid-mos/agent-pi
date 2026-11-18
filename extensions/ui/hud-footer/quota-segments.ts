@@ -26,6 +26,7 @@ import type { TariffTier } from './tariff-deepseek.ts'
 
 export type QuotaRenderOptions = {
 	compact?: boolean | undefined
+	magpieModel?: string | undefined
 	/** Peak/off-peak tier of the active DeepSeek model, when it has one. */
 	tier?: TariffTier | undefined
 	/** Instant the tier's boundary stamp is read against. */

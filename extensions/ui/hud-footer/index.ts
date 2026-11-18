@@ -25,6 +25,7 @@ import {
 	startGitTracking,
 	stopGitTracking,
 } from './git-tracking.ts'
+import { trackMagpieModel } from './magpie-model.ts'
 import {
 	refreshReviewForTurn,
 	refreshPrForBranchChange,
@@ -115,6 +116,7 @@ function safeInput(
 		git: footerState.gitCache,
 		quotas: footerState.quotaCache,
 		provider,
+		magpieModel: footerState.magpieModel,
 		tier: deepseekTier(footerState.tariffCache, now, provider, modelId),
 		now,
 	}
@@ -209,6 +211,7 @@ function subscribeBudgetSaves(events: ExtensionAPI['events']): void {
 
 export default function (pi: ExtensionAPI): void {
 	subscribeBudgetSaves(pi.events)
+	trackMagpieModel(pi)
 	pi.on('session_start', (_event, ctx) => installFooter(ctx))
 	pi.on('session_shutdown', (_event, ctx) => teardownFooter(ctx.ui))
 

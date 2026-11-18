@@ -1,4 +1,5 @@
 // Select the active provider's quota segment. Segment formatting stays pure.
+import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 import { PI_PALETTE as LATTE } from '#lib/ui/design-system/palette.ts'
 import { foregroundHex as fgHex } from '#lib/ui/design-system/terminal-color.ts'
 
@@ -30,9 +31,19 @@ export function quotaStrip(
 	options: QuotaRenderOptions = {},
 ): string {
 	const activeProvider = (provider ?? '').toLowerCase()
+	if (activeProvider === MAGPIE_PROVIDER) return magpieStrip(options)
 	const parts = activeProviderParts(quotas, activeProvider, options)
 	if (parts.length) return quotaContent(parts)
 	return quotaContent([noQuotaDataPart(activeProvider)])
+}
+
+function magpieStrip(options: QuotaRenderOptions): string {
+	const model = options.magpieModel
+		? fgHex(LATTE.text, options.magpieModel)
+		: fgHex(LATTE.overlay1, 'model unknown')
+	return quotaContent(
+		options.compact ? [model] : [QUIET(MAGPIE_PROVIDER), model],
+	)
 }
 
 /** Segments of the active provider, in the classic footer order. */
