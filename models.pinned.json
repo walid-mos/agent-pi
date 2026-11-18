@@ -468,7 +468,7 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 500000,
+          "contextWindow": 290000,
           "maxTokens": 128000,
           "compat": {
             "supportsDeveloperRole": false,
@@ -498,7 +498,7 @@
             "cacheRead": 0.012,
             "cacheWrite": 0
           },
-          "contextWindow": 500000,
+          "contextWindow": 290000,
           "maxTokens": 128000,
           "compat": {
             "supportsDeveloperRole": false,
@@ -528,7 +528,7 @@
             "cacheRead": 0.012,
             "cacheWrite": 0
           },
-          "contextWindow": 500000,
+          "contextWindow": 290000,
           "maxTokens": 128000,
           "compat": {
             "supportsDeveloperRole": false,
@@ -558,7 +558,7 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 500000,
+          "contextWindow": 290000,
           "maxTokens": 128000,
           "compat": {
             "supportsDeveloperRole": false,
@@ -588,7 +588,7 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 500000,
+          "contextWindow": 290000,
           "maxTokens": 128000,
           "compat": {
             "supportsDeveloperRole": false,
@@ -618,7 +618,7 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 500000,
+          "contextWindow": 290000,
           "maxTokens": 128000,
           "compat": {
             "supportsDeveloperRole": false,
@@ -648,7 +648,7 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 500000,
+          "contextWindow": 290000,
           "maxTokens": 128000,
           "compat": {
             "supportsDeveloperRole": false,
@@ -678,7 +678,7 @@
             "cacheRead": 0,
             "cacheWrite": 0
           },
-          "contextWindow": 500000,
+          "contextWindow": 290000,
           "maxTokens": 128000,
           "compat": {
             "supportsDeveloperRole": false,
