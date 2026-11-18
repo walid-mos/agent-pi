@@ -1,4 +1,7 @@
-import { proposalActions, validateModelResponse } from './validate-response.ts'
+import {
+	eligibleProposalActions,
+	validateModelResponse,
+} from './validate-response.ts'
 
 import type { Proposal } from './validate-response.ts'
 
@@ -54,11 +57,22 @@ export async function runProposal(input: {
 			modelResponse: {},
 			configuredModel: input.selection.selector,
 		})
+	const actions = eligibleProposalActions(input.facts)
+	if (!actions.length)
+		return {
+			day: input.day,
+			status: 'partial',
+			missingHosts: [],
+			invalidHosts: [],
+			proposal: null,
+			citedFacts: [],
+			missingInputs: ['proposal_measurements_missing'],
+		}
 	const configuredModel = exactModelId(input.selection)
 	const modelResponse = await input.modelAdapter({
 		day: input.day,
 		model: configuredModel,
-		actions: [...proposalActions],
+		actions,
 		tools: [],
 		facts: input.facts.toSorted((left, right) =>
 			left.id.localeCompare(right.id),
@@ -89,10 +103,12 @@ export function createProposalReport(input: {
 	)
 	const proposal =
 		missingHosts.length === ZERO && invalidHosts.length === ZERO
-			? validateModelResponse(input.modelResponse, input.configuredModel)
+			? validateModelResponse(
+					input.modelResponse,
+					input.configuredModel,
+					facts,
+				)
 			: null
-	if (proposal?.sourceFacts.some(id => !facts.some(fact => fact.id === id)))
-		throw new Error('Proposal cites a fact absent from the approved input')
 	return {
 		day: input.day,
 		status:

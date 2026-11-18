@@ -214,7 +214,10 @@ export async function runNightly(input: NightlyInput): Promise<NightlyReport> {
 	})
 	return {
 		...report,
-		missingInputs: missingInputs(coverage, day),
+		missingInputs:
+			report.missingHosts.length || report.invalidHosts.length
+				? missingInputs(coverage, day)
+				: report.missingInputs,
 		coverage,
 		slot,
 		intendedSlot: input.intendedSlot,

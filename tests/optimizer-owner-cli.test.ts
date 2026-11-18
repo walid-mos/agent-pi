@@ -89,7 +89,11 @@ void test('owner CLI retries the intended day, sends only approved aggregates, a
 			keys: Object.keys(prompt).toSorted(),
 			citation: prompt.facts.find(fact => fact.id === citation),
 		},
-		{ day, keys: ['day', 'facts'], citation: { id: citation, value: 90 } },
+		{
+			day,
+			keys: ['actions', 'day', 'facts'],
+			citation: { id: citation, value: 90 },
+		},
 	)
 	assert.equal(execution.includes(fakeOverride), false)
 	assert.equal(complete.stderr.includes('raw-child-text-canary'), false)

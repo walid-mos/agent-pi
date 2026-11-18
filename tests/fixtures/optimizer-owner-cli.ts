@@ -32,7 +32,10 @@ export const response = {
 	subtype: 'success',
 	is_error: false,
 	modelUsage: { [model]: usage },
-	structured_output: { action: 'input-budget', sourceFacts: [citation] },
+	structured_output: {
+		action: 'input-budget',
+		sourceFacts: [citation, `${hostId}.pi.turns`],
+	},
 }
 export const approvedHost = {
 	hostId,
