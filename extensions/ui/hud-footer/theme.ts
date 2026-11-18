@@ -9,8 +9,6 @@ export const ICONS = {
 	context: '\u{f200}', // nf-fa-pie_chart
 	quota: '\u{f0109}', // nf-md-gauge
 	reset: '↺',
-	// ↯ marks the session as currently served by a fallback chain model
-	fallback: '↯',
 } as const
 
 // ── Meter glyphs (▰ / ▱ pairs) and layout separators ──────────────────
