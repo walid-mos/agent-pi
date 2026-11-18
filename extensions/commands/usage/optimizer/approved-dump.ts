@@ -106,7 +106,11 @@ async function readLiteralFile(path: string): Promise<unknown> {
 			after.ctimeMs !== before.ctimeMs
 		)
 			throw new Error('Pi dump changed while being read')
-		return JSON.parse(buffer.toString('utf8', 0, bytesRead))
+		return JSON.parse(
+			new TextDecoder('utf-8', { fatal: true }).decode(
+				buffer.subarray(0, bytesRead),
+			),
+		)
 	} finally {
 		await file.close()
 	}
