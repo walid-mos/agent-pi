@@ -1,9 +1,7 @@
 // Select the active provider's quota segment. Segment formatting stays pure.
-import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 import { PI_PALETTE as LATTE } from '#lib/ui/design-system/palette.ts'
 import { foregroundHex as fgHex } from '#lib/ui/design-system/terminal-color.ts'
 
-import { magpieRouteSegment } from './magpie-route.ts'
 import {
 	deepseekSegment,
 	incoSegment,
@@ -15,7 +13,6 @@ import {
 import { quietText as QUIET, thinSep } from './text.ts'
 import { ICONS } from './theme.ts'
 
-import type { MagpieRoute } from './magpie-route.ts'
 import type { QuotaRenderOptions } from './quota-segments.ts'
 import type { QuotaCache } from './quotas.ts'
 
@@ -32,20 +29,10 @@ export function quotaStrip(
 	provider: string | undefined,
 	options: QuotaRenderOptions = {},
 ): string {
-	const route = options.magpieRoute
-	if (route) return quotaContent(magpieParts(route, options))
 	const activeProvider = (provider ?? '').toLowerCase()
 	const parts = activeProviderParts(quotas, activeProvider, options)
 	if (parts.length) return quotaContent(parts)
 	return quotaContent([noQuotaDataPart(activeProvider)])
-}
-
-function magpieParts(
-	route: MagpieRoute,
-	options: QuotaRenderOptions,
-): string[] {
-	const segment = magpieRouteSegment(route)
-	return options.compact ? [segment] : [QUIET(MAGPIE_PROVIDER), segment]
 }
 
 /** Segments of the active provider, in the classic footer order. */

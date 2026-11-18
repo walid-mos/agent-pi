@@ -23,7 +23,6 @@ import { ICONS, SEP_THIN, THINKING_COLORS } from './theme.ts'
 import type { ContextUsage } from '@earendil-works/pi-coding-agent'
 import type { FooterBudget } from './budget.ts'
 import type { GitStatus } from './git-data.ts'
-import type { MagpieRoute } from './magpie-route.ts'
 import type { QuotaCache } from './quotas.ts'
 import type { TariffTier } from './tariff-deepseek.ts'
 import type { TokenTotals } from './tokens.ts'
@@ -53,7 +52,6 @@ export type FooterRenderInput = {
 	git: GitStatus | null
 	quotas: QuotaCache
 	provider: string | undefined
-	magpieRoute: MagpieRoute | undefined
 	// DeepSeek's peak/off-peak tier, rendered inside the credit segment
 	tier: TariffTier | undefined
 	// The instant the tier and its boundary stamp are read at
@@ -136,7 +134,6 @@ function composeQuotaLine(
 	const strip = {
 		tier: input.tier,
 		now: input.now,
-		magpieRoute: input.magpieRoute,
 	}
 	const fullStrip = quotaStrip(input.quotas, input.provider, strip)
 	for (const variant of HOVER_VARIANTS) {

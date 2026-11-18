@@ -3,7 +3,7 @@
  *
  * No filled pills: colored icons and tinted text sit directly on the
  * terminal background; groups are separated by thin verticals.
- * Line 1: 󰚩 model │ ✻ thinking │ path │····· provider quotas (Magpie: group → served model)
+ * Line 1: 󰚩 model │ ✻ thinking │ path │····· provider quotas
  * Line 2:  branch │ churn ▰▰▱▱ + counters │····· statuses, context gauge ▰▰▱▱▰▮▮▾ (usage fill, budget wall + fade-to-horizon band ≤4 cells) │ arrows │ cost
  *
  * The PR and review links form one contextual line above the prompt
@@ -25,7 +25,6 @@ import {
 	startGitTracking,
 	stopGitTracking,
 } from './git-tracking.ts'
-import { magpieRoute, servedModel } from './magpie-route.ts'
 import {
 	refreshReviewForTurn,
 	refreshPrForBranchChange,
@@ -116,7 +115,6 @@ function safeInput(
 		git: footerState.gitCache,
 		quotas: footerState.quotaCache,
 		provider,
-		magpieRoute: magpieRoute(provider, modelId, footerState.magpieServed),
 		tier: deepseekTier(footerState.tariffCache, now, provider, modelId),
 		now,
 	}
@@ -181,7 +179,6 @@ function teardownFooter(ui: ExtensionContext['ui']): void {
 	footerState.prTimer = null
 	footerState.reviewTimer = null
 	footerState.reviewCache = null
-	footerState.magpieServed = null
 	footerState.gitCwd = null
 	footerState.requestRender = null
 	footerState.isFooterInstalled = false
@@ -204,20 +201,6 @@ async function refreshQuotaCommand(ctx: ExtensionContext): Promise<void> {
 	ctx.ui.notify('Quotas refreshed', 'info')
 }
 
-function noteServedModel(
-	headers: Readonly<Record<string, string>>,
-	ctx: ExtensionContext,
-): void {
-	const served = servedModel(
-		readThrough(() => ctx.model?.provider, undefined)?.toLowerCase(),
-		readThrough(() => ctx.model?.id, undefined),
-		headers,
-	)
-	if (!served) return
-	footerState.magpieServed = served
-	requestRenderSafely()
-}
-
 /** A budget save lands on the shared bus; the gauge rereads its settings file. */
 function subscribeBudgetSaves(events: ExtensionAPI['events']): void {
 	if (!events || typeof events.on !== 'function') return
@@ -230,9 +213,6 @@ export default function (pi: ExtensionAPI): void {
 	pi.on('session_shutdown', (_event, ctx) => teardownFooter(ctx.ui))
 
 	// Tool completion nudges the same serialized reader used by idle polling.
-	pi.on('after_provider_response', (event, ctx) =>
-		noteServedModel(event.headers, ctx),
-	)
 	pi.on('tool_execution_end', () => refreshGit())
 	pi.on('turn_end', (_event, ctx) => {
 		refreshGit()

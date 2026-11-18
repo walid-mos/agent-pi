@@ -14,7 +14,6 @@ import { XAI_POOL_LABELS } from './quotas.ts'
 import { quietText as QUIET, thinSep } from './text.ts'
 import { ICONS } from './theme.ts'
 
-import type { MagpieRoute } from './magpie-route.ts'
 import type { IncoQuota } from './quota-inco.ts'
 import type {
 	DeepseekQuota,
@@ -31,7 +30,6 @@ export type QuotaRenderOptions = {
 	tier?: TariffTier | undefined
 	/** Instant the tier's boundary stamp is read against. */
 	now?: Date | undefined
-	magpieRoute?: MagpieRoute | undefined
 }
 
 /** OpenAI credit rows print with cents precision. */
