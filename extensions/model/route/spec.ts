@@ -11,6 +11,7 @@ import type { Static } from 'typebox'
 export const SPEC_FILE = 'magpie-routing.json'
 /** Magpie refuses a longer intent. */
 const MAX_INTENT_LENGTH = 200
+export const NO_TOKEN_FLOOR = 0
 
 const GroupReference = Type.String({ pattern: `^${GROUP_PREFIX}[a-z0-9-]+$` })
 const NonEmptyStrings = Type.Array(Type.String({ minLength: 1 }), {
@@ -25,6 +26,7 @@ const RoutingRuleSchema = Type.Object(
 	{
 		intent: Type.Optional(Type.String({ minLength: 1 })),
 		scope: Type.Optional(Type.String({ minLength: 1 })),
+		tokens: Type.Optional(Type.Integer({ minimum: 1 })),
 		use: Type.Array(GroupReference, { minItems: 1, uniqueItems: true }),
 	},
 	{ additionalProperties: false },
@@ -83,6 +85,22 @@ function ruleProblems(
 	return problems
 }
 
+/** Magpie takes the first rule that holds: one behind a rule with the same intent and scope and no higher floor never does. */
+function shadowedRules(rules: RoutingRule[]): string[] {
+	return rules.flatMap((rule, index) => {
+		const shadow = rules.findIndex(
+			(earlier, earlierIndex) =>
+				earlierIndex < index &&
+				earlier.intent === rule.intent &&
+				earlier.scope === rule.scope &&
+				(earlier.tokens ?? NO_TOKEN_FLOOR) <=
+					(rule.tokens ?? NO_TOKEN_FLOOR),
+		)
+		if (shadow === -1) return []
+		return [`rules[${index}] never holds: rules[${shadow}] comes first`]
+	})
+}
+
 type RuleSource = { path: string; rules: RoutingRule[] }
 
 function specProblems(
@@ -91,11 +109,10 @@ function specProblems(
 	sources: RuleSource[],
 ): string[] {
 	const ruleFaults = sources.flatMap(({ path, rules }) =>
-		rules.flatMap((rule, index) =>
-			ruleProblems(spec, rule, index).map(
-				problem => `${path}: ${problem}`,
-			),
-		),
+		[
+			...rules.flatMap((rule, index) => ruleProblems(spec, rule, index)),
+			...shadowedRules(rules),
+		].map(problem => `${path}: ${problem}`),
 	)
 	const pinFaults = unknownMembers(spec, Object.keys(spec.pins)).map(
 		group => `${basePath}: pins.${group} is not a member`,

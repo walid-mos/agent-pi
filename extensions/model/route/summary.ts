@@ -11,7 +11,10 @@ export const RELEASE = 'auto'
 function ruleLine(rule: RoutingRule, index: number): string {
 	const label = rule.intent ?? 'any intent'
 	const scoped = rule.scope ? `${label} in ${rule.scope}` : label
-	return `${index + 1}. ${scoped} → ${rule.use.join(' → ')}`
+	const condition = rule.tokens
+		? `${scoped} from ${rule.tokens} tokens`
+		: scoped
+	return `${index + 1}. ${condition} → ${rule.use.join(' → ')}`
 }
 
 export function describeRouting(

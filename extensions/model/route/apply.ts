@@ -12,6 +12,8 @@ import { errorText } from '#lib/error-text.ts'
 import { findMagpieGroup, magpieProvidersPath } from '#lib/magpie-groups.ts'
 import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 
+import { NO_TOKEN_FLOOR } from './spec.ts'
+
 import type { Static } from 'typebox'
 import type { MagpieGroup } from '#lib/magpie-groups.ts'
 import type { RoutingRule, RoutingSpec } from './spec.ts'
@@ -31,6 +33,7 @@ const ModelsFileSchema = Type.Object({
 const StoredRuleSchema = Type.Object({
 	use: Type.Optional(Type.String()),
 	more: Type.Optional(Type.Array(Type.String())),
+	tokens: Type.Optional(Type.Number()),
 	intent: Type.Optional(Type.String()),
 	folders: Type.Optional(Type.Array(Type.String())),
 })
@@ -45,6 +48,7 @@ type StoredGroup = MagpieGroup & Static<typeof StoredGroupSchema>
 type RuleShape = {
 	use: string
 	more: string[]
+	tokens: number
 	intent: string
 	folders: string[]
 }
@@ -80,6 +84,7 @@ function storedShape(rule: StoredRule): RuleShape {
 	return {
 		use: rule.use ?? '',
 		more: rule.more ?? [],
+		tokens: rule.tokens ?? NO_TOKEN_FLOOR,
 		intent: rule.intent ?? '',
 		folders: rule.folders ?? [],
 	}
@@ -90,6 +95,7 @@ function expectedShape(spec: RoutingSpec, rule: RoutingRule): RuleShape {
 	return {
 		use,
 		more,
+		tokens: rule.tokens ?? NO_TOKEN_FLOOR,
 		intent: rule.intent ? (spec.intents[rule.intent] ?? '') : '',
 		folders: rule.scope ? (spec.scopes[rule.scope] ?? []) : [],
 	}
@@ -103,6 +109,7 @@ function ruleArguments(spec: RoutingSpec, rule: RoutingRule): string[] {
 		'add',
 		spec.group,
 		`use=${rule.use.join(',')}`,
+		...(shape.tokens ? [`tokens=${shape.tokens}`] : []),
 		...(shape.intent ? [`intent=${shape.intent}`] : []),
 		...(shape.folders.length ? [`folders=${shape.folders.join(',')}`] : []),
 	]
