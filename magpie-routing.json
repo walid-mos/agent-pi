@@ -22,6 +22,7 @@
 	},
 	"intents": {
 		"directive": "an explicit instruction to use the strongest model, Fable, maximum thinking or the best intelligence for this task (\"use best intelligence\", \"use fable\", \"max effort\", \"réfléchis à fond\")",
+		"notice": "a note written by a program, not a person: a \"[wake] timed wake\" carrying a worker status, another pot's message or a script's report, \"your child ended\", or a \"Background command finished\" notice",
 		"trivial": "chit-chat, an acknowledgement, a test ping, a progress check (\"t'en es où ?\") or one given command to run (\"lance pnpm dev\"); not a go-ahead for pending work, no question about models or routing",
 		"resume": "a bare go-ahead to continue or start the work already discussed (\"reprends\", \"go\", \"vas-y\", \"continue\", \"do all fixes\", \"done\"), with no new content of its own",
 		"git": "committing, pushing, rebasing or merging finished work, opening, updating or merging pull requests, splitting atomic commits, resolving a merge or rebase conflict, deleting stale branches or worktrees",
@@ -52,12 +53,28 @@
 			"intent": "staging",
 			"use": ["group/ultra", "group/max"]
 		},
+		{ "intent": "notice", "use": ["group/expert", "group/deep"] },
+		{
+			"intent": "trivial",
+			"tokens": 60000,
+			"use": ["group/fast", "group/deep"]
+		},
 		{ "intent": "trivial", "use": ["group/instant", "group/fast"] },
 		{ "intent": "resume", "use": ["group/expert", "group/ultra"] },
+		{
+			"intent": "git",
+			"tokens": 60000,
+			"use": ["group/deep", "group/expert"]
+		},
 		{ "intent": "git", "use": ["group/think", "group/deep"] },
 		{ "intent": "explain", "use": ["group/deep", "group/expert"] },
 		{ "intent": "plan", "use": ["group/max", "group/ultra"] },
 		{ "intent": "prod", "use": ["group/ultra", "group/max"] },
+		{
+			"intent": "debug",
+			"tokens": 60000,
+			"use": ["group/expert", "group/ultra"]
+		},
 		{ "intent": "debug", "use": ["group/think", "group/ultra"] },
 		{
 			"scope": "harness",
