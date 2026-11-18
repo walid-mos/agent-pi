@@ -36,8 +36,10 @@ const metrics = Object.fromEntries(
 const totals = { events: 1, failed: 0, unknownStatus: 0, metrics }
 
 async function exportEvidence(root: string, sessions: string): Promise<void> {
-	const file = join(root, 'approved.jsonl')
-	const manifest = join(root, 'manifest.json')
+	const project = join(root, 'approved-project')
+	const file = join(project, 'approved.jsonl')
+	const manifest = join(root, 'collector.json')
+	await mkdir(project)
 	const entry = {
 		type: 'message',
 		timestamp: `${day}T03:00:00Z`,
@@ -48,7 +50,10 @@ async function exportEvidence(root: string, sessions: string): Promise<void> {
 		},
 	}
 	await writeFile(file, `${JSON.stringify(entry)}\n`)
-	await writeFile(manifest, JSON.stringify({ ...approval, files: [file] }))
+	await writeFile(
+		manifest,
+		JSON.stringify({ hostId, source: 'pi', directories: [project] }),
+	)
 	const run = spawnSync(
 		process.execPath,
 		[exporter, manifest, day, sessions],
