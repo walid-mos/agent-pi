@@ -132,6 +132,7 @@ void test('native Claude Code usage is summarized without account or transcript 
 				type: 'assistant',
 				timestamp: '2026-11-16T08:01:00Z',
 				sessionId: 'private-id',
+				uuid: 'private-record-id',
 				message: {
 					model: NATIVE_MODEL_ID,
 					role: 'assistant',

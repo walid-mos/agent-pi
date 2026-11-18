@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath } from 'node:url'
 
 import {
 	approvedHost,
@@ -11,32 +9,20 @@ import {
 	fixture,
 	secondSlot,
 } from './fixtures/optimizer-owner-cli.ts'
-import { installFixtureReader } from './fixtures/optimizer-staged-reader.ts'
+import {
+	configure,
+	runExport,
+	stageSnapshot,
+} from './fixtures/optimizer-staged-input.ts'
 
-import type { SpawnSyncReturns } from 'node:child_process'
-
-const exporter = fileURLToPath(
-	new URL(
-		'../extensions/commands/usage/optimizer/export-owner-sessions.ts',
-		import.meta.url,
-	),
-)
 const { hostId } = approvedHost
 const otherHost = '1123456789abcdef0123456789abcdef'
 const canary = 'fixture transcript stays in the owning directory'
 const approval = { hostId, day, source: 'pi' }
-const metrics = Object.fromEntries(
-	[
-		'input',
-		'output',
-		'cacheRead',
-		'cacheWrite',
-		'reasoning',
-		'durationMs',
-		'estimateUsd',
-	].map(metric => [metric, { sum: 10, missing: 0 }]),
-)
-const totals = { events: 1, failed: 0, unknownStatus: 0, metrics }
+const roster = [hostId, otherHost].map(id => ({
+	hostId: id,
+	approvedSources: ['pi'],
+}))
 
 async function exportEvidence(root: string, sessions: string): Promise<void> {
 	const project = join(root, 'approved-project')
@@ -80,66 +66,6 @@ async function exportEvidence(root: string, sessions: string): Promise<void> {
 	})
 }
 
-function runExport(
-	approvalPath: string,
-	sessions: string,
-): SpawnSyncReturns<string> {
-	return spawnSync(
-		process.execPath,
-		[exporter, approvalPath, day, sessions],
-		{
-			encoding: 'utf8',
-		},
-	)
-}
-
-async function configure(
-	root: string,
-): Promise<{ snapshots: string; sessions: string }> {
-	const snapshots = join(root, 'staged-snapshots')
-	const sessions = join(root, 'staged-sessions')
-	const configPath = join(root, 'owner.json')
-	const { nativeClaude, reportDirectory, usageContract } = JSON.parse(
-		await readFile(configPath, 'utf8'),
-	)
-	await mkdir(sessions)
-	await writeFile(
-		configPath,
-		JSON.stringify({
-			nativeClaude,
-			reportDirectory,
-			usageContract: {
-				...usageContract,
-				module: await installFixtureReader(root),
-			},
-			stagedEvidence: { snapshots, sessions },
-			hosts: [hostId, otherHost].map(id => ({
-				hostId: id,
-				approvedSources: ['pi'],
-			})),
-		}),
-	)
-	return { snapshots, sessions }
-}
-
-async function stageSnapshot(
-	snapshots: string,
-	enrolledHost: string,
-	claimedHost = enrolledHost,
-): Promise<void> {
-	const directory = join(snapshots, 'usage', 'v1', enrolledHost)
-	await mkdir(directory, { recursive: true })
-	await writeFile(
-		join(directory, `${day}.json`),
-		JSON.stringify({
-			version: 1,
-			hostId: claimedHost,
-			day,
-			usage: { workload: totals, 'routing-overhead': totals },
-		}),
-	)
-}
-
 async function stageEmptySource(sessions: string): Promise<void> {
 	await writeFile(
 		join(sessions, `${otherHost}.${day}.pi.json`),
@@ -157,7 +83,7 @@ async function stageEmptySource(sessions: string): Promise<void> {
 
 void test('exporter leaves metadata-only, malformed, and ambiguous measurements missing without print', async context => {
 	const { root, reports, profile, invoke } = await fixture(context)
-	const { snapshots, sessions } = await configure(root)
+	const { snapshots, sessions } = await configure(root, roster)
 	await stageSnapshot(snapshots, hostId)
 	await stageSnapshot(snapshots, otherHost)
 	await stageEmptySource(sessions)
@@ -212,7 +138,7 @@ void test('exporter leaves metadata-only, malformed, and ambiguous measurements 
 
 void test('owner job joins exact staged snapshots and local session aggregates, then retries the same day', async context => {
 	const { root, reports, profile, invoke } = await fixture(context)
-	const { snapshots, sessions } = await configure(root)
+	const { snapshots, sessions } = await configure(root, roster)
 	await exportEvidence(root, sessions)
 	await stageSnapshot(snapshots, hostId, otherHost)
 	const partial = invoke()

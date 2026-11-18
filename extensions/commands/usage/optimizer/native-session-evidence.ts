@@ -92,9 +92,7 @@ function canonicalMeasurement(
 			next.requestId &&
 			prior.requestId !== next.requestId)
 	)
-		throw new Error(
-			'Conflicting Claude Code response identity or measurement',
-		)
+		throw new Error('Conflicting Claude Code response identity or metrics')
 	return {
 		...prior,
 		output: Math.max(prior.output, next.output),
@@ -102,11 +100,24 @@ function canonicalMeasurement(
 	}
 }
 
+function bindIdentity(
+	index: Map<string, string>,
+	id: string,
+	measurement: string,
+	label: string,
+): void {
+	const prior = index.get(id)
+	if (prior && prior !== measurement)
+		throw new Error(`Conflicting ${label} identity`)
+	index.set(id, measurement)
+}
+
 export class NativeSessionCollector {
 	readonly #owner: Owner
 	readonly #measurements = new Map<string, Measurement>()
 	readonly #piFileEntries = new Map<string, string>()
 	readonly #claudeRequests = new Map<string, string>()
+	readonly #claudeRecords = new Map<string, string>()
 
 	constructor(owner: Owner) {
 		this.#owner = owner
@@ -131,9 +142,7 @@ export class NativeSessionCollector {
 				'native session',
 			)
 			if (sessionId && sessionId !== recordSessionId)
-				throw new Error(
-					'Conflicting native session identity in one file',
-				)
+				throw new Error('Conflicting session identity in one file')
 			sessionId = recordSessionId
 			const id = this.#addMeasurement(
 				entry,
@@ -143,18 +152,15 @@ export class NativeSessionCollector {
 			)
 			if (source === 'pi') piEntries.add(id)
 		}
-		if (source === 'pi' && sessionId)
-			this.#checkPiCopy(sessionId, piEntries)
-	}
-
-	#checkPiCopy(sessionId: string, ids: Set<string>): void {
-		const signature = JSON.stringify([...ids].toSorted())
-		const prior = this.#piFileEntries.get(sessionId)
-		if (prior && prior !== signature)
-			throw new Error(
-				'Conflicting Pi session copies have different measured entries',
+		if (source === 'pi' && sessionId) {
+			const entries = JSON.stringify([...piEntries].toSorted())
+			bindIdentity(
+				this.#piFileEntries,
+				sessionId,
+				entries,
+				'Pi measured session',
 			)
-		this.#piFileEntries.set(sessionId, signature)
+		}
 	}
 
 	#addMeasurement(
@@ -165,11 +171,13 @@ export class NativeSessionCollector {
 	): string {
 		const { source } = this.#owner
 		const isClaudeResponse = source === 'claude-code' && Boolean(message)
-		const recordId = source === 'pi' ? entry.id : entry.uuid
-		const id = requiredId(
-			isClaudeResponse ? message?.id : recordId,
-			'native measurement',
-		)
+		const recordId =
+			source === 'pi'
+				? requiredId(entry.id, 'Pi entry')
+				: requiredId(entry.uuid, 'Claude Code transcript UUID')
+		const id = isClaudeResponse
+			? requiredId(message?.id, 'Claude Code response')
+			: recordId
 		const key = isClaudeResponse
 			? JSON.stringify([id])
 			: JSON.stringify([scope.sessionId, id])
@@ -181,21 +189,25 @@ export class NativeSessionCollector {
 			? { ...scope, kind: 'assistant', requestId, ...tokens }
 			: { ...scope, kind: 'compaction' }
 		const prior = this.#measurements.get(key)
-		if (requestId) this.#checkClaudeRequest(requestId, id)
+		if (source === 'claude-code')
+			bindIdentity(
+				this.#claudeRecords,
+				recordId,
+				JSON.stringify([id, next]),
+				'Claude Code transcript UUID',
+			)
+		if (requestId)
+			bindIdentity(
+				this.#claudeRequests,
+				requestId,
+				id,
+				'Claude Code request and response',
+			)
 		this.#measurements.set(
 			key,
 			prior ? canonicalMeasurement(prior, next, source) : next,
 		)
 		return id
-	}
-
-	#checkClaudeRequest(requestId: string, messageId: string): void {
-		const prior = this.#claudeRequests.get(requestId)
-		if (prior && prior !== messageId)
-			throw new Error(
-				'Conflicting Claude Code request and message identities',
-			)
-		this.#claudeRequests.set(requestId, messageId)
 	}
 
 	summarize(): NativeSessionEvidence | undefined {

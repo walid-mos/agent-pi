@@ -182,6 +182,7 @@ void test('recurring Claude export accepts native measurements and refuses a lin
 			type: 'assistant',
 			timestamp: `${day}T03:00:00Z`,
 			sessionId: 'claude-session',
+			uuid: 'claude-record',
 			message: {
 				id: 'msg_fixture',
 				role: 'assistant',
