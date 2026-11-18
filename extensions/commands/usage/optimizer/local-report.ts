@@ -10,13 +10,21 @@ const PRIVATE_FILE_MODE = 0o600
 
 type Report = Awaited<ReturnType<typeof runNightly>>
 
+export function localReportPath(
+	directory: string,
+	day: string,
+	status: Report['status'],
+): string {
+	if (!isAbsolute(directory) || !DAY_KEY.test(day))
+		throw new Error('Expected a local report directory and UTC day key')
+	return join(directory, `${day}.${status}.json`)
+}
+
 export async function writeLocalReport(
 	directory: string,
 	report: Report,
 ): Promise<string> {
-	if (!isAbsolute(directory) || !DAY_KEY.test(report.day))
-		throw new Error('Expected a local report directory and UTC day key')
-	const destination = join(directory, `${report.day}.${report.status}.json`)
+	const destination = localReportPath(directory, report.day, report.status)
 	const staging = await mkdtemp(join(directory, '.optimizer-'))
 	try {
 		const file = join(staging, 'report.json')

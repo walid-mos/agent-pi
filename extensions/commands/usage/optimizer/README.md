@@ -16,11 +16,50 @@ The owner verifies paths, format, identity and coverage in each environment. Pi 
 
 The Pi `/dump` format has a separate structural check and stays outside the nightly feed. `readApprovedDump` runs only in the owner environment. Pass the permit from the owner's approval record and the expected scope from the owner-side caller. Supply the owner approval store's atomic consume operation. It returns success only for the exact unspent approved record and denies revoked or consumed permits. The permit binds an opaque permit ID, host, `pi-dump` source, canonical absolute file, `read` operation and expiry. The check returns the permit ID and day-limited counts or a denial code. Use a regular file in an owner-controlled directory with no concurrent writers. Keep the file, its path and its contents on the owner host. A permit for one file authorizes that structural read only. Any subsequent read, another source, excerpts or model submission needs its own approval.
 
+## Native runner trust boundary
+
+| Trusted | Untrusted |
+| --- | --- |
+| The owner account, reviewed runner and Usage #2 decoder, owner configuration, authorized feed producer, and installed Claude Code binary. Claude Code uses the owner's existing sign-in for the duration of its invocation. | Aggregate payload fields, the caller's inherited environment and working directory, and the model's response content. |
+
+| Channel | Control and proof |
+| --- | --- |
+| Environment, sourced files and lookup paths | The child gets a fixed environment with explicit owner profile and working paths. The runner executes an absolute binary directly. The stub fixture plants provider, proxy, and shell overrides and checks the actual child environment. |
+| Config and tool subprocesses | Start in a private empty directory with safe and restricted modes, strict empty MCP configuration, connectors off, and an empty built-in tool list. The stub checks the actual arguments. Managed policy still applies. The owner reviews effective settings and credential helpers under the job account before approving the run. |
+| Shared files and shell evaluation | Owner-controlled input and output directories stay outside the child workspace. The runner passes only the model's numeric evidence on stdin. The stub plants extra fields and instruction text. |
+| Output | Check model identity in the CLI result envelope and allow only reviewed recommendations. Suppress raw CLI stdout and stderr in diagnostics. The stub proves rejection of missing, fallback, mixed, and forged metadata. |
+| Process inspection, privilege and network | The runner trusts the owner login and executable. It does not isolate mutually untrusted same-user processes or restrict the CLI's network at OS level. Use the runner only in the verified owner job context. |
+
+## Owner invocation
+
+Run with Node 24 or later under the owner login using a clean launcher environment. Pass the ISO timestamp of the intended Paris slot. For a retry or a delayed wake, use the original slot, including its UTC offset. Use 03:00 local when the spring change skips 02:00. The runner takes its actual invocation time from the job clock and rejects future or off-schedule slots.
+
+```sh
+node extensions/commands/usage/optimizer/owner-cli.ts /absolute/path/owner.json 2026-10-25T02:00:00+02:00
+```
+
+Keep the configuration and report directory private to the owner account. Give the authorized feed producer access only to its handoff location. Configure these fields:
+
+| Key | Value |
+| --- | --- |
+| `feedDirectory` | Absolute path to the authorized aggregate handoff directory. |
+| `reportDirectory` | Absolute path to an existing owner-controlled report directory. |
+| `usageContract.revision`, `usageContract.module` | The `USAGE_CONTRACT_REVISION` in `daily-usage.ts` and the absolute path to the corresponding reviewed module exporting `decodeSnapshot`. The owner installs and verifies the pinned module and its imports. |
+| `hosts` | Objects with `hostId` and `approvedSources`, drawn from the owner's enrolled roster and approvals. |
+| `nativeClaude.executable`, `nativeClaude.home`, `nativeClaude.configDirectory` | Absolute paths for the reviewed native Claude executable, owner home, and signed-in profile. |
+| `nativeClaude.isPrintApproved` | Set to `true` after verifying the job account, settings, and paid usage policy. `false` refuses print mode. |
+
+The trusted collector atomically publishes `<UTC day>.json` in `feedDirectory` with `{ "day": "YYYY-MM-DD", "hosts": [...] }`. Each host entry carries `hostId`, the optional Usage #2 `snapshot`, and `sessions`, an array of daily summaries from that host's approved native sources. The producer uses the existing owner transport to establish origin before publishing the handoff. The runner takes the roster and source approvals from `owner.json`. Keep dumps, raw sessions, and collection credentials in the owning environment. No raw-reader or network credentials are needed by the nightly entry point.
+
+A missing handoff produces a partial coverage report with no Claude invocation. Repeat the same slot once the handoff arrives. The first partial report stays on disk as evidence of that run. A daily lock prevents overlapping runs in the same report directory, and an existing complete report skips Claude, including on the second occurrence of the autumn fold. After an interrupted run that leaves a lock, the owner checks that the process has ended and whether Claude was billed before clearing that day's lock and retrying.
+
 ## Native Claude activation
 
-The expected model is `claude-fable-5-2`, supported by Claude Code 2.1.321 or later. The offline adapter proves the response contract. It receives numeric facts, the available recommendation IDs and an empty tool list. The trusted native adapter must extract the served model from structured provider metadata, reject any fallback or mixed-model result, and return that metadata separately from the model's selected recommendation. The proposal renderer accepts only reviewed recommendation IDs and citations to facts from the same run. Free-form model text cannot become a proposal or action.
+The runner checks the Claude version and the configured profile's `claude auth status`. It pins `claude-fable-5-2` and accepts a successful JSON result only when `modelUsage` has exactly one entry for that ID, with a matching `canonicalModel` and `firstParty` provider. It validates `structured_output` through the existing proposal renderer, which accepts reviewed choices and citations to facts from the same run. The request carries the day and approved numeric facts, including their fact identifiers. [CLI reference](https://code.claude.com/docs/en/cli-reference), [structured output](https://code.claude.com/docs/en/headless#get-structured-output), [fallback metadata](https://code.claude.com/docs/en/model-config#automatic-model-fallback), [model usage fields](https://code.claude.com/docs/en/agent-sdk/typescript#modelusage)
 
-Before enabling execution, the Mac owner must verify the resolved Claude path and version, effective subscription sign-in, Keychain access under the job login, plan or seat, model picker eligibility, allowance and reset, paid credit setting and cap, and any organization policy. Check effective API keys, gateway, credential helpers and model overrides by presence and effect. Keep values private. Use native safe mode to preserve subscription auth. Bare mode skips saved subscription auth. Print mode can spend usage credits without prompting, and API credentials can take precedence. Use an allowlisted environment, disable tools and persistence, and verify isolation under the actual job context. A separate owner-authorized synthetic inference may establish structured served-model metadata and billing behavior. R2 read access and the exact aggregate fields approved for Anthropic disclosure require independent verification. Raw excerpts require a separate decision.
+Safe mode preserves the saved login and restricted mode excludes user, project and local settings from the print run. Managed settings still apply, and `auth status` is a separate command. Review the selected profile and all effective managed settings for provider overrides, credential helpers, plugin or MCP policy, and fallback behavior before enabling print mode. Strict MCP mode causes startup to fail when an exclusive managed MCP configuration applies. [CLI modes](https://code.claude.com/docs/en/cli-reference#cli-flags), [settings precedence](https://code.claude.com/docs/en/settings#settings-precedence), [managed MCP](https://code.claude.com/docs/en/managed-mcp#exclusive-control-with-managed-mcp-json)
+
+The Mac owner also verifies Keychain access, model eligibility, the plan or seat, allowance, paid credit settings, and approval to disclose the aggregate fields. Print mode can spend credits without prompting. The documented CLI contracts expose neither a preflight proof of the model that will serve the prompt nor a subscription-only guarantee that prevents paid print usage. `auth status` checks sign-in, and the response metadata checks which model actually served the run. A separate owner-authorized synthetic run can verify the effective flags, metadata, and billing in the job context. [Authentication](https://code.claude.com/docs/en/authentication), [print mode](https://code.claude.com/docs/en/headless)
 
 ## Offline proof
 
@@ -31,4 +70,4 @@ Run `node --experimental-transform-types --test tests/nightly-usage-optimizer.te
 | Owner-approved file | Deny an expired or spent permit, a symlink or a different host, source, file or operation. Export the permit ID and numeric counts only. |
 | Nightly input | Reject unapproved or mismatched structured evidence and skip the model on incomplete coverage. |
 | Model and output | Reject an unverified selector, returned fallback, invented citation or injected prose. Write the report locally once per day and status. |
-| Production credentials and process | The fixture has no credential or process to pass to a model. Before adding the native runner, verify source isolation, child environment, config lookup, subprocesses, local writes and network access under the job login. |
+| Native process | The disposable CLI stub checks the child environment, private working directory, command flags, stdin shape, auth refusal, restart behavior, and served-model metadata. Actual CLI behavior under the Mac job login remains an owner prerequisite. |

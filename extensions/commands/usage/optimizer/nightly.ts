@@ -17,13 +17,18 @@ import type {
 	ProposalReport,
 } from './proposal.ts'
 
-const hostIdSchema = Type.String({ pattern: '^[a-f0-9]{32}$' })
+const hostIdPattern = /^[a-f0-9]{32}$/
+export const hostIdSchema = Type.String({ pattern: hostIdPattern.source })
 const count = Type.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER })
+export const sessionSourceSchema = Type.Union([
+	Type.Literal('pi'),
+	Type.Literal('claude-code'),
+])
 const sessionSchema = Type.Object(
 	{
 		hostId: hostIdSchema,
 		day: Type.String(),
-		source: Type.Union([Type.Literal('pi'), Type.Literal('claude-code')]),
+		source: sessionSourceSchema,
 		sessions: count,
 		turns: count,
 		compactions: count,
@@ -33,7 +38,7 @@ const sessionSchema = Type.Object(
 	{ additionalProperties: false },
 )
 
-type HostInput = {
+export type HostInput = {
 	hostId: string
 	snapshot?: unknown
 	approvedSources: readonly ('pi' | 'claude-code')[]
@@ -145,7 +150,7 @@ function validateRun(input: NightlyInput): string[] {
 	const roster = input.hosts.map(host => host.hostId).toSorted()
 	if (
 		!roster.length ||
-		!roster.every(hostId => /^[a-f0-9]{32}$/.test(hostId)) ||
+		!roster.every(hostId => hostIdPattern.test(hostId)) ||
 		new Set(roster).size !== roster.length
 	)
 		throw new Error('Expected unique enrolled host identities')

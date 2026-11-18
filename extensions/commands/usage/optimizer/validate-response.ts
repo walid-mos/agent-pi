@@ -26,22 +26,23 @@ export const proposalActions = Object.keys(actions).filter(
 	(action): action is keyof typeof actions => Object.hasOwn(actions, action),
 )
 
+export const proposalChoiceSchema = Type.Object(
+	{
+		action: Type.String({ enum: proposalActions }),
+		sourceFacts: Type.Array(Type.String({ minLength: 1 }), {
+			minItems: 1,
+		}),
+	},
+	{ additionalProperties: false },
+)
+
 const responseSchema = Type.Object(
 	{
 		metadata: Type.Object(
 			{ model: Type.String({ minLength: 1 }) },
 			{ additionalProperties: false },
 		),
-		proposal: Type.Object(
-			{
-				action: Type.String(),
-				sourceFacts: Type.Array(Type.String({ minLength: 1 }), {
-					minItems: 1,
-					uniqueItems: true,
-				}),
-			},
-			{ additionalProperties: false },
-		),
+		proposal: proposalChoiceSchema,
 	},
 	{ additionalProperties: false },
 )
@@ -66,6 +67,8 @@ export function validateModelResponse(
 			'Structured response model does not match configured model',
 		)
 	const { action, sourceFacts } = candidate.proposal
+	if (new Set(sourceFacts).size !== sourceFacts.length)
+		throw new Error('Expected unique proposal citations')
 	const approvedAction = proposalActions.find(allowed => allowed === action)
 	if (!approvedAction) throw new Error('Expected a reviewed proposal action')
 	return { ...actions[approvedAction], sourceFacts: sourceFacts.toSorted() }
