@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import {
 	mkdtempSync,
+	statSync,
+	truncateSync,
 	realpathSync,
 	rmSync,
 	symlinkSync,
@@ -59,13 +61,16 @@ const capture = {
 	inFlight: { assistant: { text: 'private transcript' } },
 }
 
-function fixture(context: TestContext): Parameters<typeof readApprovedDump>[0] {
+function fixture(
+	context: TestContext,
+	contents: unknown = capture,
+): Parameters<typeof readApprovedDump>[0] {
 	const root = mkdtempSync(
 		join(realpathSync(tmpdir()), 'feat-nightly-usage-optimizer-dump-'),
 	)
 	context.after(() => rmSync(root, { recursive: true }))
 	const filePath = join(root, 'session.json')
-	writeFileSync(filePath, JSON.stringify(capture), { mode: 0o600 })
+	writeFileSync(filePath, JSON.stringify(contents), { mode: 0o600 })
 	const scope = {
 		host: 'synthetic-host',
 		source: 'pi-dump',
@@ -156,6 +161,67 @@ void test('dump check refuses a symbolic link even when the permit names it', as
 		}),
 		{ permitId: 'permit-7', status: 'denied', reason: 'file_refused' },
 	)
+})
+
+void test('owner-approved dump accepts representative nested fields in a multi-megabyte capture', async context => {
+	const contents = {
+		...capture,
+		runtime: {
+			...capture.runtime,
+			activeTools: [],
+			contextUsage: {},
+			scopedModels: [],
+			thinkingLevel: 'off',
+		},
+		session: {
+			...capture.session,
+			file: '/synthetic/session.jsonl',
+			modelContext: {},
+			name: 'fixture',
+			header: {
+				...capture.session.header,
+				cwd: '/synthetic',
+				type: 'session',
+				version: 3,
+			},
+			entries: Array.from({ length: 726 }, (_, index) => ({
+				type: index < 700 ? 'message' : 'compaction',
+				id: `entry-${index}`,
+				timestamp: `${day}T00:12:00Z`,
+				message: {
+					role: index < 300 ? 'assistant' : 'toolResult',
+					content: [{ type: 'text', text: 'x'.repeat(6900) }],
+					usage: { input: 3, output: 2, cacheRead: 10 },
+				},
+			})),
+		},
+		prompt: { ...capture.prompt, options: {} },
+		inFlight: { ...capture.inFlight, tools: [] },
+	}
+	const input = fixture(context, contents)
+	assert.ok(statSync(input.filePath).size > 5_008_864)
+	assert.deepEqual(await readApprovedDump(input), {
+		permitId: 'permit-7',
+		status: 'approved',
+		evidence: {
+			day,
+			sessions: 1,
+			turns: 300,
+			compactions: 26,
+			inputTokens: 900,
+			outputTokens: 600,
+		},
+	})
+})
+
+void test('owner-approved dump refuses a file above the byte bound', async context => {
+	const input = fixture(context)
+	truncateSync(input.filePath, 16_777_217)
+	assert.deepEqual(await readApprovedDump(input), {
+		permitId: 'permit-7',
+		status: 'denied',
+		reason: 'file_refused',
+	})
 })
 
 void test('dump parser rejects mismatched day, identity and unknown envelope fields', () => {
