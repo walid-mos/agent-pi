@@ -38,6 +38,7 @@ function collect(
 function piRecord(utcDay: string, input: number): string {
 	return JSON.stringify({
 		type: 'message',
+		id: `response-${utcDay}`,
 		timestamp: `${utcDay}T23:00:00Z`,
 		message: {
 			role: 'assistant',
@@ -61,7 +62,11 @@ void test('one approved Pi project directory produces distinct daily aggregates 
 	)
 	await writeFile(
 		join(approved, 'session.jsonl'),
-		[piRecord(previousDay, 35), piRecord(day, 70)].join('\n'),
+		[
+			JSON.stringify({ type: 'session', id: 'pi-session' }),
+			piRecord(previousDay, 35),
+			piRecord(day, 70),
+		].join('\n'),
 	)
 	await writeFile(
 		join(unapproved, 'ignored.jsonl'),
@@ -99,6 +104,62 @@ void test('one approved Pi project directory produces distinct daily aggregates 
 	)
 })
 
+void test('Pi export counts copied native sessions once and refuses conflicting copies in either file order', async context => {
+	const { root } = await fixture(context)
+	const config = join(root, 'approved.json')
+	const first = join(root, 'first.jsonl')
+	const second = join(root, 'second.jsonl')
+	const staging = join(root, 'staging')
+	const header = JSON.stringify({ type: 'session', id: 'pi-session' })
+	await mkdir(staging)
+	await Promise.all(
+		[first, second].map(file =>
+			writeFile(file, [header, piRecord(day, 70)].join('\n')),
+		),
+	)
+	await writeFile(
+		config,
+		JSON.stringify({ hostId, source: 'pi', day, files: [first, second] }),
+	)
+	const run = collect(config, day, staging)
+	assert.equal(run.status, 0, run.stderr)
+	assert.deepEqual(
+		JSON.parse(
+			await readFile(join(staging, `${hostId}.${day}.pi.json`), 'utf8'),
+		),
+		{
+			hostId,
+			day,
+			source: 'pi',
+			sessions: 1,
+			turns: 1,
+			compactions: 0,
+			inputTokens: 70,
+			outputTokens: 5,
+		},
+	)
+	await writeFile(second, [header, piRecord(day, 85)].join('\n'))
+	await Promise.all(
+		[
+			[first, second],
+			[second, first],
+		].map(async (files, index) => {
+			const approval = join(root, `conflict-${index}.json`)
+			const outbox = join(root, `outbox-${index}`)
+			await mkdir(outbox)
+			await writeFile(
+				approval,
+				JSON.stringify({ hostId, source: 'pi', day, files }),
+			)
+			assert.equal(collect(approval, day, outbox).status, 1)
+			await assert.rejects(
+				readFile(join(outbox, `${hostId}.${day}.pi.json`)),
+				{ code: 'ENOENT' },
+			)
+		}),
+	)
+})
+
 void test('recurring Claude export accepts native measurements and refuses a linked JSONL input', async context => {
 	const { root } = await fixture(context)
 	const approved = join(root, 'project')
@@ -120,7 +181,12 @@ void test('recurring Claude export accepts native measurements and refuses a lin
 		JSON.stringify({
 			type: 'assistant',
 			timestamp: `${day}T03:00:00Z`,
-			message: { usage: { input_tokens: 40, output_tokens: 8 } },
+			sessionId: 'claude-session',
+			message: {
+				id: 'msg_fixture',
+				role: 'assistant',
+				usage: { input_tokens: 40, output_tokens: 8 },
+			},
 		}),
 	)
 	const aggregate = join(staging, `${hostId}.${day}.claude-code.json`)

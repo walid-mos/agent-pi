@@ -1,15 +1,14 @@
-import { Type } from 'typebox'
-import { Value } from 'typebox/value'
+import {
+	measuredDay,
+	measuredTokens,
+	sessionRecord,
+} from './session-measurement.ts'
 
-import { timestampOf } from './closed-utc-day.ts'
-
-const RECORD_SCHEMA = Type.Record(Type.String(), Type.Unknown())
-const UTC_DAY_LENGTH = 10
-const ZERO = 0
+import type { SessionSource } from './session-measurement.ts'
 
 export type NativeSessionEvidence = {
 	hostId: string
-	source: 'pi' | 'claude-code'
+	source: SessionSource
 	day: string
 	sessions: number
 	turns: number
@@ -18,108 +17,213 @@ export type NativeSessionEvidence = {
 	outputTokens: number
 }
 
-type Source = NativeSessionEvidence['source']
 type Owner = Pick<NativeSessionEvidence, 'hostId' | 'source' | 'day'>
-type Summary = {
-	hasDayEntry: boolean
-	turns: number
-	compactions: number
-	inputTokens: number
-	outputTokens: number
-}
+type Entry = Record<string, unknown>
+type Measurement = { day: string; sessionId: string; timestamp: unknown } & (
+	| { kind: 'compaction' }
+	| {
+			kind: 'assistant'
+			input: number
+			output: number
+			requestId: string | undefined
+	  }
+)
 
-function recordOf(candidate: unknown): Record<string, unknown> {
-	if (!Value.Check(RECORD_SCHEMA, candidate))
-		throw new Error('Expected native session JSON object')
+function requiredId(candidate: unknown, label: string): string {
+	if (typeof candidate !== 'string' || !candidate.trim())
+		throw new Error(`Missing or invalid ${label} identity`)
 	return candidate
 }
 
-function tokenOf(count: unknown): number {
-	if (
-		typeof count !== 'number' ||
-		!Number.isSafeInteger(count) ||
-		count < ZERO
-	)
-		throw new Error('Invalid native session token count')
-	return count
+function piHeaderId(entry: Entry, prior: string | undefined): string {
+	if (prior) throw new Error('Unexpected second Pi session header identity')
+	return requiredId(entry.id, 'Pi session')
 }
 
-function messageOf(
-	entry: Record<string, unknown>,
-	source: Source,
-): Record<string, unknown> | undefined {
-	if (source === 'pi' && entry.type === 'message') {
-		const message = recordOf(entry.message)
-		if (typeof message.role !== 'string' || !message.role.trim())
-			throw new Error('Expected a native session message role')
-		if (message.role !== 'assistant') return undefined
-		return message
-	}
-	if (source === 'claude-code' && entry.type === 'assistant')
-		return recordOf(entry.message)
+function assistantMessage(
+	entry: Entry,
+	source: SessionSource,
+): Entry | undefined {
+	const expectedType = source === 'pi' ? 'message' : 'assistant'
+	if (entry.type !== expectedType) return undefined
+	const message = sessionRecord(entry.message)
+	if (typeof message.role !== 'string' || !message.role.trim())
+		throw new Error('Expected a native session message role')
+	if (message.role === 'assistant') return message
+	if (source === 'claude-code')
+		throw new Error('Claude Code assistant role does not match record type')
 	return undefined
 }
 
-function usageTotals(
-	usage: unknown,
-	source: Source,
-): { input: number; output: number } {
-	if (!Value.Check(RECORD_SCHEMA, usage))
-		throw new Error('Missing or invalid native assistant usage')
-	const input = source === 'pi' ? usage.input : usage.input_tokens
-	const output = source === 'pi' ? usage.output : usage.output_tokens
-	return { input: tokenOf(input), output: tokenOf(output) }
+function isCompaction(entry: Entry, source: SessionSource): boolean {
+	return source === 'pi'
+		? entry.type === 'compaction'
+		: entry.type === 'system' && entry.subtype === 'compact_boundary'
 }
 
-function addEntry(
-	entry: Record<string, unknown>,
-	owner: Owner,
-	summary: Summary,
-): Summary {
-	const isCompaction =
-		owner.source === 'pi'
-			? entry.type === 'compaction'
-			: entry.type === 'system' && entry.subtype === 'compact_boundary'
-	const message = messageOf(entry, owner.source)
-	if (!isCompaction && !message) return summary
-	if (recordDay(entry.timestamp) !== owner.day) return summary
-	if (!message)
-		return {
-			...summary,
-			hasDayEntry: true,
-			compactions: summary.compactions + Number(isCompaction),
-		}
-	const totals = usageTotals(message.usage, owner.source)
+function sameMeasurement(prior: Measurement, next: Measurement): boolean {
+	return (
+		prior.sessionId === next.sessionId &&
+		prior.day === next.day &&
+		prior.timestamp === next.timestamp &&
+		(prior.kind === 'compaction'
+			? next.kind === 'compaction'
+			: next.kind === 'assistant' &&
+				prior.input === next.input &&
+				prior.output === next.output)
+	)
+}
+
+function canonicalMeasurement(
+	prior: Measurement,
+	next: Measurement,
+	source: SessionSource,
+): Measurement {
+	if (source === 'pi' || next.kind === 'compaction') {
+		if (sameMeasurement(prior, next)) return prior
+		throw new Error('Conflicting native measurement identity')
+	}
+	if (
+		prior.kind !== 'assistant' ||
+		prior.sessionId !== next.sessionId ||
+		prior.day !== next.day ||
+		prior.input !== next.input ||
+		(prior.requestId &&
+			next.requestId &&
+			prior.requestId !== next.requestId)
+	)
+		throw new Error(
+			'Conflicting Claude Code response identity or measurement',
+		)
 	return {
-		hasDayEntry: true,
-		turns: summary.turns + 1,
-		compactions: summary.compactions + Number(isCompaction),
-		inputTokens: summary.inputTokens + totals.input,
-		outputTokens: summary.outputTokens + totals.output,
+		...prior,
+		output: Math.max(prior.output, next.output),
+		requestId: prior.requestId ?? next.requestId,
 	}
 }
 
-function recordDay(timestamp: unknown): string {
-	if (typeof timestamp !== 'string')
-		throw new Error('Missing native measurement timestamp')
-	const instant = timestampOf(timestamp)
-	const date = timestamp.slice(0, UTC_DAY_LENGTH)
-	const midnight = new Date(`${date}T00:00:00Z`)
-	if (
-		!Number.isFinite(midnight.valueOf()) ||
-		!midnight.toISOString().startsWith(date)
-	)
-		throw new Error('Invalid native measurement timestamp date')
-	return new Date(instant).toISOString().slice(0, UTC_DAY_LENGTH)
-}
+export class NativeSessionCollector {
+	readonly #owner: Owner
+	readonly #measurements = new Map<string, Measurement>()
+	readonly #piFileEntries = new Map<string, string>()
+	readonly #claudeRequests = new Map<string, string>()
 
-function emptySummary(): Summary {
-	return {
-		hasDayEntry: false,
-		turns: ZERO,
-		compactions: ZERO,
-		inputTokens: ZERO,
-		outputTokens: ZERO,
+	constructor(owner: Owner) {
+		this.#owner = owner
+	}
+
+	addFile(lines: string[]): void {
+		const { source } = this.#owner
+		let sessionId: string | undefined
+		const piEntries = new Set<string>()
+		for (const line of lines) {
+			const entry = sessionRecord(JSON.parse(line))
+			if (source === 'pi' && entry.type === 'session') {
+				sessionId = piHeaderId(entry, sessionId)
+				continue
+			}
+			const message = assistantMessage(entry, source)
+			if (!message && !isCompaction(entry, source)) continue
+			const day = measuredDay(entry.timestamp)
+			const tokens = message && measuredTokens(message.usage, source)
+			const recordSessionId = requiredId(
+				source === 'pi' ? sessionId : entry.sessionId,
+				'native session',
+			)
+			if (sessionId && sessionId !== recordSessionId)
+				throw new Error(
+					'Conflicting native session identity in one file',
+				)
+			sessionId = recordSessionId
+			const id = this.#addMeasurement(
+				entry,
+				{ day, sessionId, timestamp: entry.timestamp },
+				message,
+				tokens,
+			)
+			if (source === 'pi') piEntries.add(id)
+		}
+		if (source === 'pi' && sessionId)
+			this.#checkPiCopy(sessionId, piEntries)
+	}
+
+	#checkPiCopy(sessionId: string, ids: Set<string>): void {
+		const signature = JSON.stringify([...ids].toSorted())
+		const prior = this.#piFileEntries.get(sessionId)
+		if (prior && prior !== signature)
+			throw new Error(
+				'Conflicting Pi session copies have different measured entries',
+			)
+		this.#piFileEntries.set(sessionId, signature)
+	}
+
+	#addMeasurement(
+		entry: Entry,
+		scope: Pick<Measurement, 'day' | 'sessionId' | 'timestamp'>,
+		message: Entry | undefined,
+		tokens: ReturnType<typeof measuredTokens> | undefined,
+	): string {
+		const { source } = this.#owner
+		const isClaudeResponse = source === 'claude-code' && Boolean(message)
+		const recordId = source === 'pi' ? entry.id : entry.uuid
+		const id = requiredId(
+			isClaudeResponse ? message?.id : recordId,
+			'native measurement',
+		)
+		const key = isClaudeResponse
+			? JSON.stringify([id])
+			: JSON.stringify([scope.sessionId, id])
+		const requestId =
+			isClaudeResponse && Object.hasOwn(entry, 'requestId')
+				? requiredId(entry.requestId, 'Claude Code request')
+				: undefined
+		const next: Measurement = tokens
+			? { ...scope, kind: 'assistant', requestId, ...tokens }
+			: { ...scope, kind: 'compaction' }
+		const prior = this.#measurements.get(key)
+		if (requestId) this.#checkClaudeRequest(requestId, id)
+		this.#measurements.set(
+			key,
+			prior ? canonicalMeasurement(prior, next, source) : next,
+		)
+		return id
+	}
+
+	#checkClaudeRequest(requestId: string, messageId: string): void {
+		const prior = this.#claudeRequests.get(requestId)
+		if (prior && prior !== messageId)
+			throw new Error(
+				'Conflicting Claude Code request and message identities',
+			)
+		this.#claudeRequests.set(requestId, messageId)
+	}
+
+	summarize(): NativeSessionEvidence | undefined {
+		const sessions = new Set<string>()
+		let turns = 0
+		let compactions = 0
+		let inputTokens = 0
+		let outputTokens = 0
+		for (const measurement of this.#measurements.values()) {
+			if (measurement.day !== this.#owner.day) continue
+			sessions.add(measurement.sessionId)
+			if (measurement.kind === 'compaction') {
+				compactions++
+				continue
+			}
+			turns++
+			inputTokens += measurement.input
+			outputTokens += measurement.output
+		}
+		if (!sessions.size) return undefined
+		return {
+			...this.#owner,
+			sessions: sessions.size,
+			turns,
+			compactions,
+			inputTokens,
+			outputTokens,
+		}
 	}
 }
 
@@ -127,17 +231,7 @@ export function parseNativeSessionFile(
 	lines: string[],
 	owner: Owner,
 ): NativeSessionEvidence | undefined {
-	const summary = lines.reduce(
-		(current, line) => addEntry(recordOf(JSON.parse(line)), owner, current),
-		emptySummary(),
-	)
-	if (!summary.hasDayEntry) return undefined
-	return {
-		...owner,
-		sessions: 1,
-		turns: summary.turns,
-		compactions: summary.compactions,
-		inputTokens: summary.inputTokens,
-		outputTokens: summary.outputTokens,
-	}
+	const collector = new NativeSessionCollector(owner)
+	collector.addFile(lines)
+	return collector.summarize()
 }

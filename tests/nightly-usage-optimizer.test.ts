@@ -36,6 +36,7 @@ void test('native session summary ignores prompts and records only approved fiel
 			JSON.stringify({
 				type: 'message',
 				timestamp: '2026-11-16T08:01:00Z',
+				id: 'pi-response',
 				message: {
 					role: 'assistant',
 					model: 'claude-fable-5-2',
@@ -45,6 +46,7 @@ void test('native session summary ignores prompts and records only approved fiel
 			}),
 			JSON.stringify({
 				type: 'compaction',
+				id: 'pi-compaction',
 				timestamp: '2026-11-16T08:02:00Z',
 			}),
 		],
@@ -110,7 +112,7 @@ void test('measured assistant entries require both token counts in Pi and Claude
 	const entry = {
 		type: 'assistant',
 		timestamp,
-		message: { usage: { input_tokens: 300 } },
+		message: { role: 'assistant', usage: { input_tokens: 300 } },
 	}
 	assert.throws(
 		() =>
@@ -132,6 +134,8 @@ void test('native Claude Code usage is summarized without account or transcript 
 				sessionId: 'private-id',
 				message: {
 					model: NATIVE_MODEL_ID,
+					role: 'assistant',
+					id: 'private-message-id',
 					usage: { input_tokens: 55, output_tokens: 8 },
 					content: 'private output',
 				},

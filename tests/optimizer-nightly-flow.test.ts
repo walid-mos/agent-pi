@@ -68,6 +68,7 @@ const session = parseNativeSessionFile(
 		JSON.stringify({ type: 'session', id: 'private-session-id' }),
 		JSON.stringify({
 			type: 'message',
+			id: 'pi-response',
 			timestamp: `${evidenceDay}T08:00:00Z`,
 			message: {
 				role: 'assistant',

@@ -13,7 +13,7 @@ import { Value } from 'typebox/value'
 
 import { readBoundedFile, readOwnerJson } from './bounded-owner-file.ts'
 import { latestClosedUtcDay, latestParisSlot } from './closed-utc-day.ts'
-import { parseNativeSessionFile } from './native-session-evidence.ts'
+import { NativeSessionCollector } from './native-session-evidence.ts'
 import { hostIdSchema, sessionSchema, sessionSourceSchema } from './nightly.ts'
 import { sessionEvidenceName } from './session-evidence-name.ts'
 
@@ -56,37 +56,31 @@ async function summarize(
 	scope: Scope,
 	files: string[],
 ): Promise<NativeSessionEvidence | undefined> {
-	const initial = {
-		...scope,
-		sessions: 0,
-		turns: 0,
-		compactions: 0,
-		inputTokens: 0,
-		outputTokens: 0,
-	}
-	const summary = await files.reduce(async (pending, file) => {
-		const previous = await pending
-		const next = await summarizeFile(scope, file)
-		if (!next) return previous
+	if (!files.length)
 		return {
 			...scope,
-			sessions: previous.sessions + next.sessions,
-			turns: previous.turns + next.turns,
-			compactions: previous.compactions + next.compactions,
-			inputTokens: previous.inputTokens + next.inputTokens,
-			outputTokens: previous.outputTokens + next.outputTokens,
+			sessions: 0,
+			turns: 0,
+			compactions: 0,
+			inputTokens: 0,
+			outputTokens: 0,
 		}
-	}, Promise.resolve(initial))
-	if (!summary.sessions && files.length) return undefined
+	const collector = new NativeSessionCollector(scope)
+	await files.reduce(async (pending, file) => {
+		await pending
+		await addFile(collector, file)
+	}, Promise.resolve())
+	const summary = collector.summarize()
+	if (!summary) return undefined
 	if (!Value.Check(sessionSchema, summary))
 		throw new Error('Invalid session aggregate counts')
 	return summary
 }
 
-async function summarizeFile(
-	scope: Scope,
+async function addFile(
+	collector: NativeSessionCollector,
 	file: string,
-): Promise<NativeSessionEvidence | undefined> {
+): Promise<void> {
 	if (file !== resolve(file) || !file.endsWith('.jsonl'))
 		throw new Error('Expected approved absolute native JSONL paths')
 	const bytes = await readBoundedFile(file, MAX_SESSION_BYTES)
@@ -96,7 +90,7 @@ async function summarizeFile(
 			.decode(bytes)
 			.split(/\r?\n/)
 			.filter(line => line.trim())
-		return parseNativeSessionFile(lines, scope)
+		collector.addFile(lines)
 	} catch (error) {
 		throw new Error('Invalid approved local session file', { cause: error })
 	}

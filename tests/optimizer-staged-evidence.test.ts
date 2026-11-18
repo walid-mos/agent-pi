@@ -11,6 +11,9 @@ import {
 	fixture,
 	secondSlot,
 } from './fixtures/optimizer-owner-cli.ts'
+import { installFixtureReader } from './fixtures/optimizer-staged-reader.ts'
+
+import type { SpawnSyncReturns } from 'node:child_process'
 
 const exporter = fileURLToPath(
 	new URL(
@@ -42,6 +45,7 @@ async function exportEvidence(root: string, sessions: string): Promise<void> {
 	await mkdir(project)
 	const entry = {
 		type: 'message',
+		id: 'pi-response',
 		timestamp: `${day}T03:00:00Z`,
 		message: {
 			role: 'assistant',
@@ -49,16 +53,18 @@ async function exportEvidence(root: string, sessions: string): Promise<void> {
 			content: canary,
 		},
 	}
-	await writeFile(file, `${JSON.stringify(entry)}\n`)
+	await writeFile(
+		file,
+		[
+			JSON.stringify({ type: 'session', id: 'pi-session' }),
+			JSON.stringify(entry),
+		].join('\n'),
+	)
 	await writeFile(
 		manifest,
 		JSON.stringify({ hostId, source: 'pi', directories: [project] }),
 	)
-	const run = spawnSync(
-		process.execPath,
-		[exporter, manifest, day, sessions],
-		{ encoding: 'utf8' },
-	)
+	const run = runExport(manifest, sessions)
 	assert.equal(run.status, 0, run.stderr)
 	const contents = await readFile(
 		join(sessions, `${hostId}.${day}.pi.json`),
@@ -74,26 +80,17 @@ async function exportEvidence(root: string, sessions: string): Promise<void> {
 	})
 }
 
-async function installFixtureReader(root: string): Promise<string> {
-	const pinned = process.env.NIGHTLY_USAGE_PINNED_PIPELINE
-	if (pinned) return join(pinned, 'dailySnapshot.ts')
-	const decoder = join(root, 'dailySnapshot.ts')
-	await writeFile(
-		decoder,
-		'export const SNAPSHOT_LIMIT = 8192; export function decodeSnapshot() { throw Error("Use the staged publication reader") }',
+function runExport(
+	approvalPath: string,
+	sessions: string,
+): SpawnSyncReturns<string> {
+	return spawnSync(
+		process.execPath,
+		[exporter, approvalPath, day, sessions],
+		{
+			encoding: 'utf8',
+		},
 	)
-	await writeFile(
-		join(root, 'readDailyPublication.ts'),
-		`export async function readDailyPublication(store, roster, day) {
-		return { day, hosts: await Promise.all(roster.map(async ({hostId}) => {
-			const stored = await store.get(\`usage/v1/\${hostId}/\${day}.json\`);
-			if (!stored) return {hostId, status: 'missing'};
-			try { const snapshot = await new Response(stored.body).json(); return snapshot.hostId === hostId && snapshot.day === day ? {hostId, status: 'delivered', usage: snapshot.usage} : {hostId, status: 'invalid'}; }
-			catch { return {hostId, status: 'invalid'}; }
-		})) }
-	}`,
-	)
-	return decoder
 }
 
 async function configure(
@@ -143,34 +140,35 @@ async function stageSnapshot(
 	)
 }
 
-void test('exporter leaves non-measurement-only input missing and refuses malformed measured input', async context => {
+async function stageEmptySource(sessions: string): Promise<void> {
+	await writeFile(
+		join(sessions, `${otherHost}.${day}.pi.json`),
+		JSON.stringify({
+			...approval,
+			hostId: otherHost,
+			sessions: 0,
+			turns: 0,
+			compactions: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+		}),
+	)
+}
+
+void test('exporter leaves metadata-only, malformed, and ambiguous measurements missing without print', async context => {
 	const { root, reports, profile, invoke } = await fixture(context)
 	const { snapshots, sessions } = await configure(root)
 	await stageSnapshot(snapshots, hostId)
 	await stageSnapshot(snapshots, otherHost)
+	await stageEmptySource(sessions)
 	const manifest = join(root, 'manifest.json')
 	const file = join(root, 'approved.jsonl')
 	await writeFile(manifest, JSON.stringify({ ...approval, files: [file] }))
 	await writeFile(file, JSON.stringify({ type: 'session', id: 'header' }))
-	const skipped = spawnSync(
-		process.execPath,
-		[exporter, manifest, day, sessions],
-		{ encoding: 'utf8' },
-	)
+	const skipped = runExport(manifest, sessions)
 	assert.equal(skipped.status, 0, skipped.stderr)
 	const aggregate = join(sessions, `${hostId}.${day}.pi.json`)
 	await assert.rejects(readFile(aggregate), { code: 'ENOENT' })
-	const partial = invoke()
-	assert.equal(partial.status, 0, partial.stderr)
-	const report = JSON.parse(
-		await readFile(join(reports, `${day}.partial.json`), 'utf8'),
-	)
-	assert.deepEqual(report.coverage[0], {
-		hostId,
-		usage: 'valid',
-		sessions: 'missing',
-	})
-	await assert.rejects(readFile(join(profile, 'calls')), { code: 'ENOENT' })
 	await writeFile(
 		file,
 		JSON.stringify({
@@ -179,13 +177,37 @@ void test('exporter leaves non-measurement-only input missing and refuses malfor
 			message: { role: 'assistant', usage: { input: 300, output: 100 } },
 		}),
 	)
-	const refused = spawnSync(
-		process.execPath,
-		[exporter, manifest, day, sessions],
-		{ encoding: 'utf8' },
-	)
+	const refused = runExport(manifest, sessions)
 	assert.equal(refused.status, 1, refused.stderr)
+	const conflictingEntries = [
+		{ type: 'session', id: 'session' },
+		...[300, 301].map(input => ({
+			type: 'message',
+			id: 'response',
+			timestamp: `${day}T01:00:00Z`,
+			message: { role: 'assistant', usage: { input, output: 100 } },
+		})),
+	]
+	await writeFile(
+		file,
+		conflictingEntries.map(entry => JSON.stringify(entry)).join('\n'),
+	)
+	const ambiguous = runExport(manifest, sessions)
+	assert.equal(ambiguous.status, 1, ambiguous.stderr)
 	await assert.rejects(readFile(aggregate), { code: 'ENOENT' })
+	const partial = invoke()
+	assert.equal(partial.status, 0, partial.stderr)
+	const report = JSON.parse(
+		await readFile(join(reports, `${day}.partial.json`), 'utf8'),
+	)
+	assert.deepEqual(report.coverage, [
+		{ hostId, usage: 'valid', sessions: 'missing' },
+		{ hostId: otherHost, usage: 'valid', sessions: 'valid' },
+	])
+	await assert.rejects(readFile(join(profile, 'calls')), { code: 'ENOENT' })
+	await assert.rejects(readFile(join(reports, `${day}.attempt.json`)), {
+		code: 'ENOENT',
+	})
 })
 
 void test('owner job joins exact staged snapshots and local session aggregates, then retries the same day', async context => {
@@ -205,18 +227,7 @@ void test('owner job joins exact staged snapshots and local session aggregates, 
 	await assert.rejects(readFile(join(profile, 'calls')), { code: 'ENOENT' })
 	await stageSnapshot(snapshots, hostId)
 	await stageSnapshot(snapshots, otherHost)
-	await writeFile(
-		join(sessions, `${otherHost}.${day}.pi.json`),
-		JSON.stringify({
-			...approval,
-			hostId: otherHost,
-			sessions: 0,
-			turns: 0,
-			compactions: 0,
-			inputTokens: 0,
-			outputTokens: 0,
-		}),
-	)
+	await stageEmptySource(sessions)
 	const retried = invoke(secondSlot)
 	assert.equal(retried.status, 0, retried.stderr)
 	const complete = JSON.parse(
