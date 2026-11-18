@@ -24,6 +24,14 @@ Deletion discards that VM's data. Collect results and usage before deletion when
 
 A stopped sandbox's disk can contain runtime credentials and test output. Delete it when its results are collected. Store only a credential-free toolchain in a saved snapshot. Read https://docs.boat.dev/snapshots.md and https://docs.boat.dev/data-retention.md for current retention and stop/resume behavior.
 
+## Local temporary ownership
+
+Before creating a preview, source export or account/status probe output, choose its exact private root path and a run ID. Record them outside the disposable root, together with its marker path, purpose, source commit when relevant, and each explicit extra input. Register idempotent cleanup on success, failure and interruption before populating the root. Create the marker with that run ID and keep probe results private. Keep records and markers outside upload contents.
+
+Cleanup validates the recorded absolute root and marker against this run before removing only that root and its recorded children. Refuse symlink roots, a missing or mismatched marker, or an unexpected path. A second cleanup treats an already removed owned root as success. Never discover deletion targets through a name prefix or a broad `/tmp/boat-*` glob. A later owner first reconciles a stopped run's record and marker before removing its leftovers.
+
+Retain only explicitly selected nonsecret deliverables outside the disposable root. Register previews and probe results as disposable even when they contain only account/login metadata. If ownership cannot be proved, leave the exact path untouched and report it for the creating task's owner to reconcile and clean. The installed skill remains the canonical copy, so a temporary preview is not an installation.
+
 ## Access and environment
 
 Workspace's provider checks its environment before every start and resume. Keep GitHub access, secret injection and agent credentials off there. Its sandbox-only Boat key is for that VM's lifecycle. A pot's control key belongs in the vault, outside the Boat VM.

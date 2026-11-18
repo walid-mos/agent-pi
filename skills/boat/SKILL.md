@@ -19,17 +19,17 @@ Inside a pot, run Boat account checks through `/opt/agent-sandbox/session/with-v
 
 ## Run a job
 
-Inside a pot's repository checkout, `scripts/job` wraps `workspace job` in its vault reader. On the Mac, call `workspace job` directly.
+Read [source-inputs.md](source-inputs.md) before preparing an upload. Use its owned export of committed source, with each extra required input named explicitly. Inside a pot, `scripts/job` wraps `workspace job` in its vault reader. On the Mac, call `workspace job` directly.
 
 ```bash
-~/.pi/agent/skills/boat/scripts/job --push . --boat-type small --boat-ttl 20m \
+~/.pi/agent/skills/boat/scripts/job --push "$SOURCE_EXPORT" --boat-type small --boat-ttl 20m \
   --setup /absolute/path/install-dependencies.sh \
   --command 'pnpm test' --artifact reports
 ```
 
 The wrapper shares workspace's flags. Read `workspace job --help` for them.
 
-Use an artifact path that the command actually creates, or omit `--artifact` for logs only. `--push` uploads tracked and unignored files without Git history or a GitHub token. Inspect this selection for credentials before upload. Keep `.env`, credentials and generated output ignored.
+Use an artifact path that the command actually creates, or omit `--artifact` for logs only. Workspace omits Git history and a GitHub token, but its file selection is broader than committed source. Follow the source-input procedure even when the original checkout has ignore rules.
 Workspace prints the result directory and returns the remote command's exit status. Inspect its setup log, command log, status files and artifact archive even when the exit is nonzero. Artifacts are unmodified command output. Select only intended reports and inspect them before publishing.
 
 The caller trusts its setup and command as it does when running that repository locally. Workspace sends selected values on SSH stdin and masks their exact bytes in collected logs. This does not isolate hostile same-user processes, prevent deliberate encoded disclosure or sanitize artifacts. Do not upload a production credential to an untrusted checkout. For stronger client isolation, follow the private recipe rather than claiming this generic job provides it.
@@ -43,4 +43,5 @@ For a full Playwright suite, read the private client's measurement recipe before
 ## References
 
 - [pot-setup.md](pot-setup.md): install CLIs and grant or renew each pot's access.
-- [operations.md](operations.md): stop, recover, inspect usage, snapshots and remote access.
+- [source-inputs.md](source-inputs.md): prepare a committed source export and explicit inputs before an upload.
+- [operations.md](operations.md): stop, recover, inspect usage, snapshots and remote access, and register temporary files before setup or probes.

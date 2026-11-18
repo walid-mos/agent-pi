@@ -49,15 +49,27 @@ key_id=$(printf '%s' "$created" | jq -er '.id // .apiKey.id // .key.id')
 expires=$(printf '%s' "$created" | jq -r '.expiresAt // .apiKey.expiresAt // .key.expiresAt // "unknown"')
 if ! printf '%s' "$created" | jq -er '.secret' | store BOAT_API_KEY; then
 	unset created
-	boat api-key revoke "$key_id" --json >/dev/null
+	boat api-key revoke "$key_id" --json >/dev/null 2>&1 ||
+		fail "the vault refused BOAT_API_KEY at $vault_path and revocation of new key $key_id could not be confirmed; previous keys were left untouched; reconcile the vault and revoke $key_id before retrying"
 	fail "the vault refused BOAT_API_KEY at $vault_path; the new key $key_id was revoked and the previous keys still work"
 fi
 unset created
-printf '%s' "$environment" | store BOAT_ENVIRONMENT
+has_store_failure=false
+if ! printf '%s' "$environment" | store BOAT_ENVIRONMENT; then
+	has_store_failure=true
+	echo "pot-access: BOAT_ENVIRONMENT at $vault_path failed to store and may have committed; verify it is $environment before using the pot" >&2
+fi
 
+has_revocation_failure=false
 for previous in $previous_keys; do
-	boat api-key revoke "$previous" --json >/dev/null
+	if ! boat api-key revoke "$previous" --json >/dev/null 2>&1; then
+		has_revocation_failure=true
+		echo "pot-access: could not revoke previous key $previous; revoke it after reconciling $vault_path" >&2
+	fi
 done
+if $has_store_failure || $has_revocation_failure; then
+	fail "rotation is incomplete; BOAT_API_KEY was stored and new key $key_id was retained; reconcile $vault_path and retry pot-access $pot"
+fi
 
 echo "pot-access: $pot starts sandboxes in the Boat environment $environment with key $key_id, expiring $expires, stored at $vault_path"
 if ! jq -e --arg path "$vault_path" --argjson names "$VAULT_NAMES" '.onRequest.boat == {($path): $names}' "$SANDBOXES/$pot/sandbox.json" >/dev/null; then

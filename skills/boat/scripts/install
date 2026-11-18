@@ -11,8 +11,14 @@ fail() { echo "install: $1" >&2; exit 1; }
 
 [[ $(uname -s) == Linux ]] || fail "this installs the CLIs on a Linux pot; on a Mac, build workspace from its checkout as its README says"
 case $(uname -m) in
-x86_64) platform=linux-x64 ;;
-aarch64) platform=linux-arm64 ;;
+x86_64)
+	platform=linux-x64
+	boat_sha256=fc6ceace13daa49960528b91a41a68efef21a6ced31925c02f23cc272c09d57d
+	;;
+aarch64)
+	platform=linux-arm64
+	boat_sha256=2dbe0c063a0afbf71c83253670f177c3b67d985071231015f7c649e3336ece6f
+	;;
 *) fail "no Boat CLI build for $(uname -m)" ;;
 esac
 ref=main
@@ -22,16 +28,23 @@ elif [[ $# -ne 0 ]]; then
 	fail "usage: install [--ref WORKSPACE_BRANCH]"
 fi
 command -v docker >/dev/null || fail "docker is missing: the workspace build runs in a $BUILD_IMAGE container"
+command -v curl >/dev/null || fail "curl is missing: install curl before downloading the Boat CLI"
+command -v sha256sum >/dev/null || fail "sha256sum is missing: install coreutils before verifying the Boat CLI"
 
 bin="$HOME/.local/bin"
 staging=$(mktemp -d)
 trap 'rm -rf "$staging"' EXIT
 
-curl -fsSL "$BOAT_DOWNLOAD$platform" -o "$staging/boat"
-chmod 755 "$staging/boat"
 docker run --rm --cpus "$BUILD_CPUS" --user "$(id -u):$(id -g)" \
 	-e HOME=/tmp -e CARGO_HOME=/tmp/cargo -v "$staging:/out" "$BUILD_IMAGE" \
 	cargo install --locked --quiet --root /out --git "$WORKSPACE_REPOSITORY" --branch "$ref" "$WORKSPACE_PACKAGE"
+"$staging/bin/workspace" job --help >/dev/null 2>&1 ||
+	fail "workspace@$ref lacks workspace job or cannot run on this pot: install a runnable ref containing workspace PR8 before either CLI can be installed"
+
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL "$BOAT_DOWNLOAD$platform" -o "$staging/boat"
+printf '%s  %s\n' "$boat_sha256" "$staging/boat" | sha256sum --check --status ||
+	fail "Boat CLI SHA-256 differs from the reviewed digest: neither CLI was installed; review upstream distribution metadata before updating the pin"
+chmod 755 "$staging/boat"
 
 mkdir -p "$bin"
 mv "$staging/boat" "$bin/boat"
