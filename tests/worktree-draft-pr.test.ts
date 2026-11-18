@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
-	chmodSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -15,11 +14,12 @@ import { test } from 'node:test'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { installFakeGh } from './fixtures/fake-gh.mts'
+
 import type { SpawnSyncReturns } from 'node:child_process'
 import type { TestContext } from 'node:test'
 
 const draftPr = resolve('skills/worktree/scripts/draft-pr')
-const fakeGh = resolve('tests/fixtures/fake-gh.mjs')
 const branch = 'fix/fixture-task'
 const title = 'fix(fixture): open the task draft'
 const createdPullRequest = 'https://github.invalid/fixture/repository/pull/1'
@@ -51,11 +51,7 @@ function createFixture(t: TestContext, openPullRequest = ''): Fixture {
 	t.after(() => rmSync(root, { recursive: true, force: true }))
 	const bin = join(root, 'bin')
 	mkdirSync(bin)
-	writeFileSync(
-		join(bin, 'gh'),
-		`#!/bin/sh\nexec '${process.execPath}' '${fakeGh}' "$@"\n`,
-	)
-	chmodSync(join(bin, 'gh'), 0o755)
+	const fakeGhEnvironment = installFakeGh(bin)
 	const fixture = {
 		checkout: join(root, 'checkout'),
 		calls: join(root, 'gh-calls.jsonl'),
@@ -68,8 +64,10 @@ function createFixture(t: TestContext, openPullRequest = ''): Fixture {
 			GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
 			GIT_COMMITTER_NAME: 'Fixture',
 			GIT_COMMITTER_EMAIL: 'fixture@example.invalid',
+			...fakeGhEnvironment,
 			FAKE_GH_CALLS: join(root, 'gh-calls.jsonl'),
 			FAKE_GH_OPEN_PULL_REQUEST: openPullRequest,
+			FAKE_GH_CREATED_PULL_REQUEST: createdPullRequest,
 		},
 	}
 	writeFileSync(fixture.calls, '')
