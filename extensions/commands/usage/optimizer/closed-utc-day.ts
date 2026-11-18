@@ -1,9 +1,16 @@
 const UTC_DAY_LENGTH = 10
-const MARCH = 3
-const OCTOBER = 10
-const HOUR_TWO = 2
-const HOUR_THREE = 3
-const UTC_MONTH_END = 0
+const HOUR_MS = 3_600_000
+const SCHEDULE_HOUR = '02'
+const GAP_RECOVERY_HOUR = '03'
+const OFFSET_TIMESTAMP =
+	/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
+const parisClock = new Intl.DateTimeFormat('en-GB', {
+	timeZone: 'Europe/Paris',
+	hourCycle: 'h23',
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+})
 
 export type ParisSlotState =
 	| 'regular'
@@ -11,76 +18,34 @@ export type ParisSlotState =
 	| 'autumn-fold-first'
 	| 'autumn-fold-second'
 
+export function timestampOf(timestamp: string): number {
+	const instant = Date.parse(timestamp)
+	if (!OFFSET_TIMESTAMP.test(timestamp) || !Number.isFinite(instant))
+		throw new Error('Expected an ISO timestamp with an explicit UTC offset')
+	return instant
+}
+
 export function latestClosedUtcDay(invokedAt: string): string {
-	const instant = Date.parse(invokedAt)
-	if (!Number.isFinite(instant))
-		throw new Error('Expected an ISO timestamp for optimizer invocation')
-	const currentUtcDate = new Date(instant)
+	const currentUtcDate = new Date(timestampOf(invokedAt))
 	currentUtcDate.setUTCDate(currentUtcDate.getUTCDate() - 1)
 	return currentUtcDate.toISOString().slice(0, UTC_DAY_LENGTH)
 }
 
 export function parisSlotState(invokedAt: string): ParisSlotState {
-	const instant = Date.parse(invokedAt)
-	if (!Number.isFinite(instant))
-		throw new Error('Expected an ISO timestamp for optimizer invocation')
-	const local = parisParts(instant)
-	const lastSunday = lastSundayOfMonth(local.year, local.month)
+	const instant = timestampOf(invokedAt)
+	const localTime = parisClock.format(instant)
+	const previousHour = parisClock.format(instant - HOUR_MS)
+	const nextHour = parisClock.format(instant + HOUR_MS)
+	const scheduled = `${SCHEDULE_HOUR}:00:00`
+	if (localTime === scheduled) {
+		if (nextHour === scheduled) return 'autumn-fold-first'
+		if (previousHour === scheduled) return 'autumn-fold-second'
+		return 'regular'
+	}
 	if (
-		local.month === MARCH &&
-		local.day === lastSunday &&
-		local.hour === HOUR_THREE
+		localTime === `${GAP_RECOVERY_HOUR}:00:00` &&
+		previousHour === '01:00:00'
 	)
 		return 'spring-gap-recovery'
-	if (
-		local.month === OCTOBER &&
-		local.day === lastSunday &&
-		local.hour === HOUR_TWO
-	)
-		return local.offset === '+02:00'
-			? 'autumn-fold-first'
-			: 'autumn-fold-second'
-	return 'regular'
-}
-
-function parisParts(instant: number): {
-	year: number
-	month: number
-	day: number
-	hour: number
-	offset: string
-} {
-	const fields = new Intl.DateTimeFormat('en-CA', {
-		timeZone: 'Europe/Paris',
-		hourCycle: 'h23',
-		year: 'numeric',
-		month: 'numeric',
-		day: 'numeric',
-		hour: 'numeric',
-	}).formatToParts(instant)
-	const values = Object.fromEntries(
-		fields.map(part => [part.type, Number(part.value)]),
-	)
-	const offset = new Intl.DateTimeFormat('en-US', {
-		timeZone: 'Europe/Paris',
-		timeZoneName: 'longOffset',
-	})
-		.formatToParts(instant)
-		.find(part => part.type === 'timeZoneName')
-		?.value.replace('GMT', '')
-	const { year, month, day, hour } = values
-	if (!year || !month || !day || !hour)
-		throw new Error('Unable to read Europe/Paris scheduler fields')
-	return {
-		year,
-		month,
-		day,
-		hour,
-		offset: offset || '+01:00',
-	}
-}
-
-function lastSundayOfMonth(year: number, month: number): number {
-	const lastDay = new Date(Date.UTC(year, month, UTC_MONTH_END))
-	return lastDay.getUTCDate() - lastDay.getUTCDay()
+	throw new Error('Expected a 02:00 Europe/Paris slot or its DST recovery')
 }

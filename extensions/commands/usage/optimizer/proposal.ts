@@ -1,4 +1,4 @@
-import { validateModelResponse } from './validate-response.ts'
+import { proposalActions, validateModelResponse } from './validate-response.ts'
 
 import type { Proposal } from './validate-response.ts'
 
@@ -8,10 +8,13 @@ const REPORT_INDENT = 2
 export const NATIVE_MODEL_ID = 'claude-fable-5-2'
 
 export type ModelSelection = { selector: string; isVerified: boolean }
-export type Fact = { id: string; value: string | number }
+export type Fact = { id: string; value: number }
 export type ModelAdapter = (input: {
 	day: string
+	model: string
 	facts: Fact[]
+	actions: readonly string[]
+	tools: readonly []
 }) => Promise<unknown>
 export type ProposalReport = {
 	day: string
@@ -19,11 +22,12 @@ export type ProposalReport = {
 	missingHosts: string[]
 	invalidHosts: string[]
 	proposal: Proposal | null
+	citedFacts: Fact[]
 	missingInputs: string[]
 }
 
 export function exactModelId(selection: ModelSelection): string {
-	if (!selection.isVerified || !selection.selector.trim())
+	if (!selection.isVerified || selection.selector !== NATIVE_MODEL_ID)
 		throw new Error(
 			'Model selector must be verified before proposal generation',
 		)
@@ -53,6 +57,9 @@ export async function runProposal(input: {
 	const configuredModel = exactModelId(input.selection)
 	const modelResponse = await input.modelAdapter({
 		day: input.day,
+		model: configuredModel,
+		actions: [...proposalActions],
+		tools: [],
 		facts: input.facts.toSorted((left, right) =>
 			left.id.localeCompare(right.id),
 		),
@@ -84,10 +91,7 @@ export function createProposalReport(input: {
 		missingHosts.length === ZERO && invalidHosts.length === ZERO
 			? validateModelResponse(input.modelResponse, input.configuredModel)
 			: null
-	if (
-		proposal &&
-		proposal.sourceFacts.some(id => !facts.some(fact => fact.id === id))
-	)
+	if (proposal?.sourceFacts.some(id => !facts.some(fact => fact.id === id)))
 		throw new Error('Proposal cites a fact absent from the approved input')
 	return {
 		day: input.day,
@@ -98,6 +102,9 @@ export function createProposalReport(input: {
 		missingHosts,
 		invalidHosts,
 		proposal,
+		citedFacts: facts.filter(fact =>
+			proposal?.sourceFacts.includes(fact.id),
+		),
 		missingInputs: [
 			...missingHosts.map(
 				host => `usage_snapshot_missing:${host}:${input.day}`,

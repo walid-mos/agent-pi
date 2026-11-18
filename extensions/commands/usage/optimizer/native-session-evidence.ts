@@ -12,7 +12,6 @@ export type NativeSessionEvidence = {
 	sessions: number
 	turns: number
 	compactions: number
-	models: string[]
 	inputTokens: number
 	outputTokens: number
 }
@@ -25,7 +24,6 @@ type Summary = {
 	compactions: number
 	inputTokens: number
 	outputTokens: number
-	models: Set<string>
 }
 
 function recordOf(candidate: unknown): Record<string, unknown> {
@@ -85,24 +83,19 @@ function addEntry(
 		entry.type === 'compaction' ||
 		(entry.type === 'system' && entry.subtype === 'compact_boundary')
 	const message = messageOf(entry, owner.source)
-	if (!message || message.role !== 'assistant')
+	if (message?.role !== 'assistant')
 		return {
 			...summary,
 			hasDayEntry: true,
 			compactions: summary.compactions + Number(isCompaction),
 		}
 	const totals = usageTotals(message.usage, owner.source)
-	const { model } = message
 	return {
 		hasDayEntry: true,
 		turns: summary.turns + 1,
 		compactions: summary.compactions + Number(isCompaction),
 		inputTokens: summary.inputTokens + totals.input,
 		outputTokens: summary.outputTokens + totals.output,
-		models:
-			typeof model === 'string' && model
-				? new Set([...summary.models, model])
-				: summary.models,
 	}
 }
 
@@ -113,7 +106,6 @@ function emptySummary(): Summary {
 		compactions: ZERO,
 		inputTokens: ZERO,
 		outputTokens: ZERO,
-		models: new Set(),
 	}
 }
 
@@ -132,7 +124,6 @@ export function parseNativeSessionFile(
 		sessions: summary.hasDayEntry ? 1 : ZERO,
 		turns: summary.turns,
 		compactions: summary.compactions,
-		models: [...summary.models].toSorted(),
 		inputTokens: summary.inputTokens,
 		outputTokens: summary.outputTokens,
 	}

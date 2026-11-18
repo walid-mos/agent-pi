@@ -1,7 +1,30 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import type { Static } from 'typebox'
+const actions = {
+	'input-budget': {
+		title: 'Review input token budgets',
+		change: 'Trial a smaller context budget on comparable sessions.',
+		measure:
+			'Compare median input tokens per turn before and after the trial. Track incomplete tasks as a guardrail.',
+	},
+	'routing-latency': {
+		title: 'Review routing latency',
+		change: 'Review the slowest routing step and trial a shorter path on equivalent tasks.',
+		measure:
+			'Compare routing milliseconds per measured event before and after the trial. Track failure rates as a guardrail.',
+	},
+	'failure-review': {
+		title: 'Review failed requests',
+		change: 'Review where requests fail and trial one reliability change on comparable tasks.',
+		measure:
+			'Compare failed requests per hundred events before and after the trial. Track elapsed time as a guardrail.',
+	},
+} as const
+
+export const proposalActions = Object.keys(actions).filter(
+	(action): action is keyof typeof actions => Object.hasOwn(actions, action),
+)
 
 const responseSchema = Type.Object(
 	{
@@ -11,13 +34,11 @@ const responseSchema = Type.Object(
 		),
 		proposal: Type.Object(
 			{
-				title: Type.String({ minLength: 1 }),
+				action: Type.String(),
 				sourceFacts: Type.Array(Type.String({ minLength: 1 }), {
 					minItems: 1,
+					uniqueItems: true,
 				}),
-				change: Type.String({ minLength: 1 }),
-				measure: Type.String({ minLength: 1 }),
-				limitations: Type.Array(Type.String({ minLength: 1 })),
 			},
 			{ additionalProperties: false },
 		),
@@ -25,7 +46,12 @@ const responseSchema = Type.Object(
 	{ additionalProperties: false },
 )
 
-export type Proposal = Static<typeof responseSchema>['proposal']
+export type Proposal = {
+	title: string
+	change: string
+	measure: string
+	sourceFacts: string[]
+}
 
 export function validateModelResponse(
 	candidate: unknown,
@@ -39,5 +65,8 @@ export function validateModelResponse(
 		throw new Error(
 			'Structured response model does not match configured model',
 		)
-	return candidate.proposal
+	const { action, sourceFacts } = candidate.proposal
+	const approvedAction = proposalActions.find(allowed => allowed === action)
+	if (!approvedAction) throw new Error('Expected a reviewed proposal action')
+	return { ...actions[approvedAction], sourceFacts: sourceFacts.toSorted() }
 }
