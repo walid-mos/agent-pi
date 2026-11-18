@@ -1,5 +1,4 @@
 import type { GitPr, GitStatus } from './git-data.ts'
-import type { MagpieServed } from './magpie-route.ts'
 import type { QuotaCache } from './quotas.ts'
 // Shared mutable state of the footer extension. The extension is a process
 // singleton per pi session; module state mirrors the adapter-map pattern used
@@ -14,7 +13,6 @@ export type FooterState = {
 	requestRender: (() => void) | null
 	quotaCache: QuotaCache
 	quotaTimer: ReturnType<typeof setInterval> | null
-	magpieServed: MagpieServed | null
 	tariffCache: DeepseekTariff | null
 	gitCache: GitStatus | null
 	gitCwd: string | null
@@ -32,7 +30,6 @@ export const footerState: FooterState = {
 	requestRender: null,
 	quotaCache: {},
 	quotaTimer: null,
-	magpieServed: null,
 	tariffCache: null,
 	gitCache: null,
 	gitCwd: null,
