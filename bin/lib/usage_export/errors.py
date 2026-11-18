@@ -1,0 +1,2 @@
+class ExportInputError(ValueError):
+    pass

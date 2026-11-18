@@ -68,7 +68,7 @@ class HostCase(ExportCase):
     def csv_row(self, row, cost="0.25"):
         fields = ("req", "provider", "served", "in", "out", "cache_read", "cache_write", "cache_write_1h",
                   "reasoning", "ms", "status", "response_id", "rid", "kind")
-        return [row["t"][:19].replace("T", " "), *(row.get(field, "") for field in fields), cost]
+        return [row["t"], *(row.get(field, "") for field in fields), cost]
 
     def published(self):
         return {str(path.relative_to(self.output)): path.read_bytes()

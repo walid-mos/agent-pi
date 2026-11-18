@@ -2,9 +2,10 @@ import hashlib
 import json
 import re
 
+from .errors import ExportInputError
 from .normalize import CATEGORIES
 from .schema import LABEL_MAX_LENGTH, encode
-from .storage import load_metadata, read_json, rewrite_event, save_metadata
+from .storage import database_path, load_metadata, read_json, rewrite_event, save_metadata
 
 MAX_CONFIG_BYTES = 1024 * 1024
 RELABEL_BATCH = 500
@@ -38,6 +39,9 @@ def bind(database, run):
     source = {"ledger": str(run.ledger), "output": str(run.output), "timezone": run.zone.key}
     signature = hashlib.sha256(encode(source).encode()).hexdigest()
     bound = load_metadata(database, "binding") or {"source": signature, "catalog": {}}
+    if isinstance(bound, str) and re.fullmatch(r"[0-9a-f]{64}", bound):
+        raise ExportInputError(f"State {database_path(run.state)} was written by an older version. "
+                               "Preserve it and use a new state directory before retrying.")
     if bound["source"] != signature or not is_extension(run.catalog, bound["catalog"]):
         raise ValueError("state belongs to a different source or configuration")
     save_metadata(database, "binding", {"source": signature, "catalog": run.catalog})
