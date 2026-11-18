@@ -4,7 +4,7 @@ import { Value } from 'typebox/value'
 
 import { errorText } from '#lib/error-text.ts'
 import { typedPromptText } from '#lib/human-prompt.ts'
-import { GROUP_PREFIX } from '#lib/magpie.ts'
+import { GROUP_PREFIX, MAGPIE_ROUTE_CHANGED_EVENT } from '#lib/magpie.ts'
 
 import { applyRoutingSpec } from './apply.ts'
 import { pinnedGroup } from './pin.ts'
@@ -43,8 +43,7 @@ export class RouteSession {
 	}
 
 	restore(ctx: ExtensionContext): void {
-		this.pin = this.storedPin(ctx)
-		this.showPin(ctx)
+		this.updatePin(ctx, this.storedPin(ctx))
 	}
 
 	pinFromPrompt(prompt: string, ctx: ExtensionContext): void {
@@ -136,16 +135,16 @@ export class RouteSession {
 	}
 
 	private setPin(ctx: ExtensionContext, pin: string | undefined): void {
-		this.pin = pin
 		this.pi.appendEntry(PIN_ENTRY, { group: pin })
-		this.showPin(ctx)
+		this.updatePin(ctx, pin)
 	}
 
-	private showPin(ctx: ExtensionContext): void {
-		ctx.ui.setStatus(
-			STATUS_KEY,
-			this.pin ? `pinned ${this.pin}` : undefined,
-		)
+	private updatePin(ctx: ExtensionContext, pin: string | undefined): void {
+		const previousPin = this.pin
+		this.pin = pin
+		ctx.ui.setStatus(STATUS_KEY, pin ? `pinned ${pin}` : undefined)
+		if (pin !== previousPin)
+			this.pi.events.emit(MAGPIE_ROUTE_CHANGED_EVENT, undefined)
 	}
 
 	/** A release is stored as an entry without a group, so the latest entry decides. */

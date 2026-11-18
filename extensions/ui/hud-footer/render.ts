@@ -52,6 +52,7 @@ export type FooterRenderInput = {
 	git: GitStatus | null
 	quotas: QuotaCache
 	provider: string | undefined
+	magpieModel: string | undefined
 	// DeepSeek's peak/off-peak tier, rendered inside the credit segment
 	tier: TariffTier | undefined
 	// The instant the tier and its boundary stamp are read at
@@ -132,6 +133,7 @@ function composeQuotaLine(
 	width: number,
 ): string {
 	const strip = {
+		magpieModel: input.magpieModel,
 		tier: input.tier,
 		now: input.now,
 	}
