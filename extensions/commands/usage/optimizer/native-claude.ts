@@ -50,6 +50,7 @@ type NativeConfig = {
 export function nativeClaude(
 	config: NativeConfig,
 	workspaceParent: string,
+	beforePrint: () => Promise<void>,
 ): ModelAdapter {
 	return async ({ day, facts }) => {
 		if (!config.isPrintApproved)
@@ -59,10 +60,13 @@ export function nativeClaude(
 		const workspace = await mkdtemp(join(workspaceParent, '.claude-'))
 		try {
 			verifyNativeSignIn(config, workspace)
-			const stdout = runClaude(config, workspace, proposalArgs(), {
+			const args = proposalArgs()
+			const input = {
 				stdin: JSON.stringify({ day, facts }),
 				timeout: PROPOSAL_TIMEOUT_MS,
-			})
+			}
+			await beforePrint()
+			const stdout = runClaude(config, workspace, args, input)
 			return readProposal(stdout)
 		} finally {
 			await rm(workspace, { recursive: true, force: true })

@@ -53,7 +53,7 @@ export const approvedHost = {
 
 const stub = `#!${process.execPath}
 import assert from 'node:assert/strict'
-import { appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 const args = process.argv.slice(2)
 const profile = process.env.CLAUDE_CONFIG_DIR
@@ -66,6 +66,10 @@ if (args[0] === '--version') {
   assert.deepEqual(readdirSync(process.cwd()), [])
   assert.equal(process.env.TMPDIR, process.cwd())
   const prompt = JSON.parse(readFileSync(0, 'utf8'))
+  const reportDirectory = join(process.cwd(), '..', '..')
+  const attempt = JSON.parse(readFileSync(join(reportDirectory, prompt.day + '.attempt.json'), 'utf8'))
+  assert.equal(attempt.day, prompt.day)
+  if (existsSync(join(profile, 'block-report'))) mkdirSync(join(reportDirectory, prompt.day + '.complete.json'))
   writeFileSync(join(profile, 'request.json'), JSON.stringify({ prompt, args, env: process.env, cwd: process.cwd() }))
   console.error('raw-child-text-canary')
   console.log(readFileSync(join(profile, 'response.json'), 'utf8'))

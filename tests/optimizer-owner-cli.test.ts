@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
-import { writeFileSync } from 'node:fs'
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { readFile, readdir, rename, rmdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
@@ -13,7 +12,6 @@ import {
 	model,
 	response,
 	secondSlot,
-	usage,
 } from './fixtures/optimizer-owner-cli.ts'
 
 void test('owner CLI retries the intended day, sends only approved aggregates, and skips a completed fold', async context => {
@@ -32,7 +30,14 @@ void test('owner CLI retries the intended day, sends only approved aggregates, a
 	const complete = invoke()
 	assert.deepStrictEqual(
 		{ status: complete.status, reports: await readdir(reports) },
-		{ status: 0, reports: [`${day}.complete.json`, `${day}.partial.json`] },
+		{
+			status: 0,
+			reports: [
+				`${day}.attempt.json`,
+				`${day}.complete.json`,
+				`${day}.partial.json`,
+			],
+		},
 		complete.stderr,
 	)
 	const execution = await readFile(join(profile, 'request.json'), 'utf8')
@@ -133,7 +138,7 @@ void test('owner CLI rejects feed-supplied approval and raw session fields befor
 })
 
 void test('owner CLI refuses a non-subscription auth status before submitting a prompt', async context => {
-	const { feed, profile, invoke } = await fixture(context)
+	const { feed, profile, reports, invoke } = await fixture(context)
 	await writeFile(
 		join(feed, `${day}.json`),
 		JSON.stringify({ day, hosts: [approvedHost] }),
@@ -148,42 +153,93 @@ void test('owner CLI refuses a non-subscription auth status before submitting a 
 	await assert.rejects(readFile(join(profile, 'request.json')), {
 		code: 'ENOENT',
 	})
+	assert.deepStrictEqual(await readdir(reports), [])
+	await writeFile(
+		join(profile, 'auth.json'),
+		JSON.stringify({ authMethod: 'claude.ai', configDirectory: profile }),
+	)
+	const retry = invoke(secondSlot)
+	assert.equal(retry.status, 0, retry.stderr)
 })
 
-void test('owner CLI refuses missing, fallback, mixed, or text-forged served-model metadata', async context => {
-	const { profile, feed, reports, invoke } = await fixture(context)
+void test('owner CLI blocks a second print for the UTC day after rejecting the first result', async context => {
+	const { feed, profile, invoke } = await fixture(context)
 	await writeFile(
 		join(feed, `${day}.json`),
 		JSON.stringify({ day, hosts: [approvedHost] }),
 	)
-	const alternate = {
-		canonicalModel: 'claude-sonnet-5',
-		provider: 'firstParty',
-	}
-	for (const modelUsage of [
-		undefined,
-		{ 'claude-sonnet-5': alternate },
-		{ [model]: usage, 'claude-sonnet-5': alternate },
-		{ [model]: { ...usage, provider: 'gateway' } },
-		{ [model]: { ...usage, outputTokens: 0 } },
-		{ [model]: { ...usage, canonicalModel: 'claude-sonnet-5' } },
-	]) {
-		writeResponse(modelUsage)
-		const run = invoke()
-		assert.equal(run.status, 1)
-		assert.match(run.stderr, /served model/)
-		assert.equal(run.stderr.includes('raw-child-text-canary'), false)
-	}
-	assert.deepStrictEqual(await readdir(reports), [])
+	await writeFile(
+		join(profile, 'response.json'),
+		JSON.stringify({ ...response, modelUsage: {} }),
+	)
+	const rejected = invoke()
+	const retry = invoke(secondSlot)
+	const calls = await readFile(join(profile, 'calls'), 'utf8')
+	assert.deepStrictEqual(
+		{
+			first: rejected.status,
+			retry: retry.status,
+			printLaunches: calls.match(/"--print"/g)?.length,
+		},
+		{ first: 1, retry: 1, printLaunches: 1 },
+	)
+	assert.match(rejected.stderr, /served model/)
+	assert.match(retry.stderr, /owner recovery/)
+})
 
-	function writeResponse(modelUsage: unknown): void {
-		writeFileSync(
-			join(profile, 'response.json'),
-			JSON.stringify({
-				...response,
-				modelUsage,
-				result: JSON.stringify(response),
-			}),
-		)
-	}
+void test('owner CLI blocks an ambiguous marker until the owner archives it', async context => {
+	const { feed, profile, reports, root, invoke } = await fixture(context)
+	await writeFile(
+		join(feed, `${day}.json`),
+		JSON.stringify({ day, hosts: [approvedHost] }),
+	)
+	const marker = join(reports, `${day}.attempt.json`)
+	await writeFile(marker, '')
+	const blocked = invoke()
+	assert.match(blocked.stderr, /owner recovery/)
+	await assert.rejects(readFile(join(profile, 'calls')), { code: 'ENOENT' })
+	await rename(marker, join(root, 'archived-attempt.json'))
+	const resumed = invoke()
+	assert.deepStrictEqual(
+		{
+			blocked: blocked.status,
+			resumed: resumed.status,
+			reports: await readdir(reports),
+		},
+		{
+			blocked: 1,
+			resumed: 0,
+			reports: [`${day}.attempt.json`, `${day}.complete.json`],
+		},
+		resumed.stderr,
+	)
+})
+
+void test('owner CLI blocks a retry after report publication fails', async context => {
+	const { feed, profile, reports, invoke } = await fixture(context)
+	await writeFile(
+		join(feed, `${day}.json`),
+		JSON.stringify({ day, hosts: [approvedHost] }),
+	)
+	await writeFile(join(profile, 'block-report'), '')
+	const first = invoke()
+	assert.match(first.stderr, /EEXIST|EISDIR/)
+	await rmdir(join(reports, `${day}.complete.json`))
+	const retry = invoke()
+	assert.match(retry.stderr, /owner recovery/)
+	const calls = await readFile(join(profile, 'calls'), 'utf8')
+	assert.deepStrictEqual(
+		{
+			first: first.status,
+			retry: retry.status,
+			printLaunches: calls.match(/"--print"/g)?.length,
+			reports: await readdir(reports),
+		},
+		{
+			first: 1,
+			retry: 1,
+			printLaunches: 1,
+			reports: [`${day}.attempt.json`],
+		},
+	)
 })

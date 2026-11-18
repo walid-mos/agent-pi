@@ -1,5 +1,6 @@
 import { lstatSync } from 'node:fs'
 import { mkdir, rmdir } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import {
 	latestClosedUtcDay,
@@ -14,6 +15,7 @@ import {
 	readOwnerConfig,
 	readOwnerHandoff,
 } from './owner-input.ts'
+import { recordPrintAttempt } from './print-attempt.ts'
 import { NATIVE_MODEL_ID } from './proposal.ts'
 
 const USAGE =
@@ -36,19 +38,27 @@ async function runOwnerNightly(
 	const { reportDirectory } = config
 	const completePath = localReportPath(reportDirectory, day, 'complete')
 	const lock = `${completePath}.lock`
+	const attemptPath = join(reportDirectory, `${day}.attempt.json`)
 	await mkdir(lock, { mode: PRIVATE_DIRECTORY_MODE })
 	try {
 		if (reportExists(completePath)) return `Already complete for ${day}`
+		if (lstatSync(attemptPath, { throwIfNoEntry: false }))
+			throw new Error(
+				`Claude print attempt for ${day} requires owner recovery; see ${attemptPath}`,
+			)
 		const report = await runNightly({
 			intendedSlot,
 			actualInvocation,
 			hosts: await readOwnerHandoff(config, day),
 			contract: await loadOwnerDecoder(config),
 			selection: { selector: NATIVE_MODEL_ID, isVerified: true },
-			modelAdapter: nativeClaude(config.nativeClaude, lock),
+			modelAdapter: nativeClaude(config.nativeClaude, lock, () =>
+				recordPrintAttempt(attemptPath, { day, intendedSlot }),
+			),
 		})
 		const path = localReportPath(reportDirectory, day, report.status)
-		if (!reportExists(path)) await writeLocalReport(reportDirectory, report)
+		if (report.status === 'complete' || !reportExists(path))
+			await writeLocalReport(reportDirectory, report)
 		return `${report.status} report for ${day}`
 	} finally {
 		await rmdir(lock)
