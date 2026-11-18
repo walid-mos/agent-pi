@@ -138,6 +138,51 @@ async function stageSnapshot(
 	)
 }
 
+void test('exporter leaves non-measurement-only input missing and refuses malformed measured input', async context => {
+	const { root, reports, profile, invoke } = await fixture(context)
+	const { snapshots, sessions } = await configure(root)
+	await stageSnapshot(snapshots, hostId)
+	await stageSnapshot(snapshots, otherHost)
+	const manifest = join(root, 'manifest.json')
+	const file = join(root, 'approved.jsonl')
+	await writeFile(manifest, JSON.stringify({ ...approval, files: [file] }))
+	await writeFile(file, JSON.stringify({ type: 'session', id: 'header' }))
+	const skipped = spawnSync(
+		process.execPath,
+		[exporter, manifest, day, sessions],
+		{ encoding: 'utf8' },
+	)
+	assert.equal(skipped.status, 0, skipped.stderr)
+	const aggregate = join(sessions, `${hostId}.${day}.pi.json`)
+	await assert.rejects(readFile(aggregate), { code: 'ENOENT' })
+	const partial = invoke()
+	assert.equal(partial.status, 0, partial.stderr)
+	const report = JSON.parse(
+		await readFile(join(reports, `${day}.partial.json`), 'utf8'),
+	)
+	assert.deepEqual(report.coverage[0], {
+		hostId,
+		usage: 'valid',
+		sessions: 'missing',
+	})
+	await assert.rejects(readFile(join(profile, 'calls')), { code: 'ENOENT' })
+	await writeFile(
+		file,
+		JSON.stringify({
+			type: 'message',
+			timestamp: 'invalid',
+			message: { role: 'assistant', usage: { input: 300, output: 100 } },
+		}),
+	)
+	const refused = spawnSync(
+		process.execPath,
+		[exporter, manifest, day, sessions],
+		{ encoding: 'utf8' },
+	)
+	assert.equal(refused.status, 1, refused.stderr)
+	await assert.rejects(readFile(aggregate), { code: 'ENOENT' })
+})
+
 void test('owner job joins exact staged snapshots and local session aggregates, then retries the same day', async context => {
 	const { root, reports, profile, invoke } = await fixture(context)
 	const { snapshots, sessions } = await configure(root)

@@ -68,6 +68,61 @@ void test('native session summary ignores prompts and records only approved fiel
 	assert.equal(JSON.stringify(summary).includes('private answer'), false)
 })
 
+void test('measured assistant and compaction entries require an explicit valid timestamp', () => {
+	const owner = { hostId: 'host-a', source: 'pi', day: '2026-11-16' } as const
+	const assistant = {
+		type: 'message',
+		message: { role: 'assistant', usage: { input: 300, output: 100 } },
+	}
+	for (const entry of [
+		assistant,
+		{ ...assistant, timestamp: 'invalid' },
+		{ type: 'compaction' },
+	])
+		assert.throws(
+			() => parseNativeSessionFile([JSON.stringify(entry)], owner),
+			/timestamp/i,
+		)
+})
+
+void test('measured assistant entries require both token counts in Pi and Claude Code', () => {
+	const timestamp = '2026-11-16T08:00:00Z'
+	for (const usage of [
+		undefined,
+		{ input: 300 },
+		{ input: 300, output: null },
+	]) {
+		const entry = {
+			type: 'message',
+			timestamp,
+			message: { role: 'assistant', usage },
+		}
+		assert.throws(
+			() =>
+				parseNativeSessionFile([JSON.stringify(entry)], {
+					hostId: 'host-a',
+					day: '2026-11-16',
+					source: 'pi',
+				}),
+			/usage|token count/,
+		)
+	}
+	const entry = {
+		type: 'assistant',
+		timestamp,
+		message: { usage: { input_tokens: 300 } },
+	}
+	assert.throws(
+		() =>
+			parseNativeSessionFile([JSON.stringify(entry)], {
+				hostId: 'host-a',
+				day: '2026-11-16',
+				source: 'claude-code',
+			}),
+		/token count/,
+	)
+})
+
 void test('native Claude Code usage is summarized without account or transcript content', () => {
 	const evidence = parseNativeSessionFile(
 		[
@@ -84,6 +139,7 @@ void test('native Claude Code usage is summarized without account or transcript 
 		],
 		{ hostId: 'host-a', source: 'claude-code', day: '2026-11-16' },
 	)
+	assert.ok(evidence)
 	assert.equal(evidence.turns, 1)
 	assert.equal(evidence.inputTokens, 55)
 	assert.equal(evidence.outputTokens, 8)

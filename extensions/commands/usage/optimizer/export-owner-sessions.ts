@@ -35,7 +35,7 @@ type Scope = Pick<NativeSessionEvidence, 'hostId' | 'day' | 'source'>
 async function summarize(
 	scope: Scope,
 	files: string[],
-): Promise<NativeSessionEvidence> {
+): Promise<NativeSessionEvidence | undefined> {
 	const initial = {
 		...scope,
 		sessions: 0,
@@ -47,6 +47,7 @@ async function summarize(
 	const summary = await files.reduce(async (pending, file) => {
 		const previous = await pending
 		const next = await summarizeFile(scope, file)
+		if (!next) return previous
 		return {
 			...scope,
 			sessions: previous.sessions + next.sessions,
@@ -56,6 +57,7 @@ async function summarize(
 			outputTokens: previous.outputTokens + next.outputTokens,
 		}
 	}, Promise.resolve(initial))
+	if (!summary.sessions && files.length) return undefined
 	if (!Value.Check(sessionSchema, summary))
 		throw new Error('Invalid session aggregate counts')
 	return summary
@@ -64,7 +66,7 @@ async function summarize(
 async function summarizeFile(
 	scope: Scope,
 	file: string,
-): Promise<NativeSessionEvidence> {
+): Promise<NativeSessionEvidence | undefined> {
 	if (file !== resolve(file) || !file.endsWith('.jsonl'))
 		throw new Error('Expected approved absolute native JSONL paths')
 	const bytes = await readBoundedFile(file, MAX_SESSION_BYTES)
@@ -123,7 +125,8 @@ async function main(args: string[]): Promise<void> {
 	if (!Value.Check(manifestSchema, manifest) || manifest.day !== day)
 		throw new Error('Invalid owner-approved session manifest')
 	const { hostId, source, files } = manifest
-	await publish(directory, await summarize({ hostId, source, day }, files))
+	const summary = await summarize({ hostId, source, day }, files)
+	if (summary) await publish(directory, summary)
 }
 
 try {
