@@ -40,9 +40,6 @@ const PATH_TIGHT_CHARS = 18
 export type FooterRenderInput = {
 	width: number
 	model: string
-	// A fallback status is live: the hero pill swaps its model icon for the
-	// ↯ fallback glyph and the statuses column drops that status entry
-	fallback: boolean
 	thinkingLevel: string
 	cwd: string
 	// The payload always carries every key; absent facts read as undefined
@@ -107,8 +104,7 @@ export function clampFooterLines(lines: string[], width: number): string[] {
 // ── Line 1: hero pill left │ quota strip right ────────
 
 function heroGroup(input: FooterRenderInput): string {
-	const modelGlyph = input.fallback ? ICONS.fallback : ICONS.model
-	const modelPill = `${fgHex(LATTE.mauve, modelGlyph)} ${fgHex(LATTE.text, input.model)}`
+	const modelPill = `${fgHex(LATTE.mauve, ICONS.model)} ${fgHex(LATTE.text, input.model)}`
 	const thinkingTint = THINKING_COLORS[input.thinkingLevel] ?? LATTE.subtext0
 	const thinkingPill = fgHex(
 		thinkingTint,

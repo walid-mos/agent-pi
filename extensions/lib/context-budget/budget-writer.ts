@@ -26,7 +26,7 @@ async function saveBudget(maxContextTokens: number): Promise<void> {
 			{ mode, flag: 'wx' },
 		)
 		await chmod(temporary, mode)
-		// /models saves synchronously. These two small synchronous operations leave
+		// A concurrent writer saves synchronously. These two small synchronous operations leave
 		// no JS yield where that writer could land after our check but before commit.
 		if (readFileSync(path, 'utf8') !== text)
 			throw new Error(

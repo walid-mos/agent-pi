@@ -30,7 +30,6 @@ export default defineConfig({
 		'frontend-check.json',
 		'goal-widget.json',
 		'context-budget.json',
-		'extensions/model/fallback/config.json',
 		'extensions/subagent/config.json',
 		'models.json',
 		'models.pinned.json',

@@ -3,9 +3,7 @@ import { discoverAgentSnapshot } from "../agents/agents.ts";
 import type { AgentConfig, AgentDiscoveryOptions, AgentSource } from "../agents/agents.ts";
 
 /**
- * Read-only agent roster for sibling Pi extensions (the `/models` picker in
- * `extensions/model/fallback/agent-roster.ts` reads it to list every agent it
- * can pin, not just the ones with a settings override).
+ * Read-only agent roster for sibling Pi extensions.
  *
  * The event carries a plain-JSON request whose `result` field the installed
  * pi-subagents runtime fills in synchronously. The roster is the same

@@ -3,8 +3,8 @@
  *
  * No filled pills: colored icons and tinted text sit directly on the
  * terminal background; groups are separated by thin verticals.
- * Line 1: 󰚩 model (↯ while a fallback chain model serves the session) │ ✻ thinking │ path │····· provider quotas (Magpie: group → served model)
- * Line 2:  branch │ churn ▰▰▱▱ + counters │····· statuses (the model-fallback one rides line 1's pill), context gauge ▰▰▱▱▰▮▮▾ (usage fill, budget wall + fade-to-horizon band ≤4 cells) │ arrows │ cost
+ * Line 1: 󰚩 model │ ✻ thinking │ path │····· provider quotas (Magpie: group → served model)
+ * Line 2:  branch │ churn ▰▰▱▱ + counters │····· statuses, context gauge ▰▰▱▱▰▮▮▾ (usage fill, budget wall + fade-to-horizon band ≤4 cells) │ arrows │ cost
  *
  * The PR and review links form one contextual line above the prompt
  * (context-line.ts), visible only while at least one link exists.
@@ -16,7 +16,6 @@
  */
 
 import { BUDGET_SAVED_EVENT } from '#lib/context-budget/events.ts'
-import { FALLBACK_STATUS_KEY } from '#lib/model-fallback/status.ts'
 
 import { footerBudget } from './budget.ts'
 import { footerComponent } from './component.ts'
@@ -69,26 +68,15 @@ function missingTokens(): TokenTotals {
 	return { input: 0, output: 0, cost: 0 }
 }
 
-/** Footer statuses, plus whether the session runs on a fallback chain model. */
-function extensionStatuses(footerData: ReadonlyFooterDataProvider): {
-	statuses: string[]
-	fallback: boolean
-} {
+/** Footer statuses that carry text. */
+function extensionStatuses(footerData: ReadonlyFooterDataProvider): string[] {
 	const entries = readThrough(
 		() => [...footerData.getExtensionStatuses()],
 		[],
 	)
-	// A live fallback status rides line 1's model pill (the ↯ icon) and
-	// never renders in this statuses column
-	const statuses = entries
-		.filter(
-			([key, status]) => Boolean(status) && key !== FALLBACK_STATUS_KEY,
-		)
+	return entries
+		.filter(([, status]) => Boolean(status))
 		.map(([, status]) => status)
-	const fallback = entries.some(
-		([key, status]) => key === FALLBACK_STATUS_KEY && Boolean(status),
-	)
-	return { statuses, fallback }
 }
 
 /** Build the full footer input, tolerating every pi accessor. */
@@ -113,7 +101,7 @@ function safeInput(
 	const modelWindow = readThrough(() => ctx.model?.contextWindow, undefined)
 	const cwd = readThrough(() => ctx.cwd, process.cwd())
 	const now = new Date()
-	const { statuses, fallback } = extensionStatuses(footerData)
+	const statuses = extensionStatuses(footerData)
 	return {
 		width: 0,
 		// an empty model id is not a real state; truthiness covers both shapes
@@ -125,7 +113,6 @@ function safeInput(
 		budget: footerBudget(modelWindow),
 		tokens,
 		statuses,
-		fallback,
 		git: footerState.gitCache,
 		quotas: footerState.quotaCache,
 		provider,
