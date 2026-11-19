@@ -1,28 +1,15 @@
 # Boat operations
 
-Extends "Finish" in `SKILL.md`. Workspace owns job creation and result collection. Use the provider CLI for inspection and recovery when the workspace record is unavailable.
+Extends "Finish" in `SKILL.md`. Workspace owns job creation and result collection. Use the Boat CLI for final usage, deletion evidence and recovery.
 
 ## Cleanup and cost
 
-Capture the VM id printed by workspace. For a recorded named job, `workspace stop NAME` stops it and `workspace remove NAME` deletes it. A disposable job is deleted after successful collection unless `--keep` is explicit. A failed setup, transfer or collection can leave the VM running for inspection. Stop it before inspecting.
+The named job needs its sandbox to remain readable after stop. Check the environment's [data retention](https://docs.boat.dev/data-retention.md) before launch. Use an environment that preserves stopped sandboxes until the receipt is collected.
 
-```bash
-boat --no-update stop ID --json
-boat --no-update info ID --json
-boat --no-update usage ID --json
-```
-
-Confirm the returned sandbox state has stopped. Save the usage response beside the result directory. If stopping fails, report the exact command, VM id, deadline and error, then retry within the approved scope. The provider's TTL remains the backstop after caller failure.
-
-When the workspace ledger could not save a new VM, cleanup by id through Boat:
-
-```bash
-boat --no-update delete ID --yes --json
-```
-
-Deletion discards that VM's data. Collect results and usage before deletion when recovering manually. Check `boat --no-update list --all --json` for resources owned by this task and leave other tasks' VMs alone.
-
-A stopped sandbox's disk can contain runtime credentials and test output. Delete it when its results are collected. Store only a credential-free toolchain in a saved snapshot. Read https://docs.boat.dev/snapshots.md and https://docs.boat.dev/data-retention.md for current retention and stop/resume behavior.
+1. Preserve workspace stdout, stderr and the exit status for every launch, including partial provisioning. Record the VM ID and result path as soon as they appear. Keep the setup and command statuses, logs and selected artifacts, including on nonzero exit. A setup or collection failure can leave the VM running. Use `workspace stop NAME` for a recorded VM or `boat --no-update stop ID --json` for an unrecorded one. Confirm `boat --no-update info ID --json` reports `sandbox.state` as `stopped`. Report the command, VM ID, TTL deadline and error if the stop fails, and retry while you still own the VM. The TTL is the backstop.
+2. Once stopped, save `boat --no-update usage ID --json` beside the results. Verify the lowercase `seconds` and `dollars` fields, and `running: false` when present. This is exact metered compute in default-equivalent seconds and dollars, even when included in the plan. Label any read made before stop as a running sample and read again after stop. Record a separately confirmed start fee if there is one. The usage endpoint returns 404 after deletion. If usage or artifact recovery fails, report the missing evidence and keep the VM stopped while resolving it. Use workspace's `.remote` record to identify any missing output.
+3. After collection, run `boat --no-update delete ID --yes --json` for the exact owned VM ID. Confirm `boat --no-update info ID --json` returns not found for that exact ID in the same environment. If Boat returns a deletion operation, check `boat --no-update deletion status OPERATION_ID --json` for completion and report any pending erasure. Once the VM is absent, use `workspace remove NAME` to clear its local record, if workspace recorded it. Verify the name is absent from `workspace list`. A stopped disk can still contain credentials and test output, so finish deletion promptly.
+4. Report the source commit, VM ID, size and TTL, setup and command outcomes, log and artifact paths, exact usage and deletion evidence. If a start was refused, record the full provider error available in the launch output and `nextStartAt` when supplied. A nonzero exit can follow VM creation. An ID in the output starts the stop, usage and deletion procedure even on failure. Retry only after the restriction clears and a fresh budget check passes. After an ambiguous timeout, check the workspace record and the task's environment for a VM before retrying. Never reuse the failed run's name to retry an unattended job.
 
 ## Local temporary ownership
 

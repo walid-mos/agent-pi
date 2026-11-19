@@ -10,4 +10,7 @@ for argument in "$@"; do
 	esac
 done
 
+if [[ $(uname -s) == Darwin ]]; then
+	exec workspace job "$@"
+fi
 exec /opt/agent-sandbox/session/with-vault --with boat workspace job "$@"
