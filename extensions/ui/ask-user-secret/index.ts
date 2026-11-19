@@ -10,7 +10,7 @@
 import { Text } from '@earendil-works/pi-tui'
 
 import { contentText } from '#lib/content-text.ts'
-import { configuredBroker } from '#lib/human-dialog/config.ts'
+import { brokerFlagReader, configuredBroker } from '#lib/human-dialog/config.ts'
 import {
 	markAnswered,
 	TranscriptComponent,
@@ -56,7 +56,7 @@ export default function askUserSecret(pi: ExtensionAPI): void {
 				params,
 				context,
 				signal,
-				configuredBroker(pi, context, call),
+				configuredBroker(brokerFlagReader(pi), context, call),
 			),
 		renderCall(args, _theme, context) {
 			return TranscriptComponent.pending(context.state, width =>
