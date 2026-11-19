@@ -8,7 +8,7 @@ Start an opted-in worker with a persisted session:
 pi --human-dialog-worker WORKER_NAME --human-dialog-broker /opt/agent-sandbox/session/human.mjs
 ```
 
-The broker path flag is optional. Both question and secret extensions must be loaded. The source binds the exact worker name, absolute Pi session file and tool-call ID. The launcher must check the installed Pi supports these flags before passing them. Installing this source does not update an already running Pi process. Without the worker flag, both tools use their existing local dialogs. Invalid opted-in configuration or an unavailable broker fails the tool and never bypasses arbitration.
+The broker path flag is optional. Both question and secret extensions must be loaded. `ask_user_question` registers both flags. Pi scopes `getFlag` to the registering extension and refuses a second registration, so `ask_user_secret` reads them from that owner over the session's `pi.events` bus. The source binds the exact worker name, absolute Pi session file and tool-call ID. The launcher must check the installed Pi supports these flags before passing them. Installing this source does not update an already running Pi process. Without the worker flag, both tools use their existing local dialogs. Invalid opted-in configuration or an unavailable broker fails the tool and never bypasses arbitration.
 
 ## Questions
 
@@ -40,6 +40,6 @@ The trusted Pi process, installed broker and operator may briefly hold a value. 
 
 ## Verification and rollout
 
-`tests/broker-questionnaire.test.ts`, `tests/broker-secret.test.ts`, `tests/browser-secret-owner.test.ts`, `tests/secret-dialog.test.ts`, `tests/human-dialog.test.ts`, `tests/human-broker-transport.test.ts` and `tests/human-dialog-config.test.ts` exercise controller closure, competing submissions, cancellation, restart, delivery rebinding, terminal validation, maximum encoded frames, UI startup failure, IPC binding and leakage boundaries with synthetic values. Run the repository's checks and full test suite before publishing.
+`tests/broker-questionnaire.test.ts`, `tests/broker-secret.test.ts`, `tests/browser-secret-owner.test.ts`, `tests/secret-dialog.test.ts`, `tests/human-dialog.test.ts`, `tests/human-broker-transport.test.ts`, `tests/human-dialog-config.test.ts` and `tests/worker-secret-broker.test.ts` exercise flag ownership through Pi's own loader, controller closure, competing submissions, cancellation, restart, delivery rebinding, terminal validation, maximum encoded frames, UI startup failure, IPC binding and leakage boundaries with synthetic values. Run the repository's checks and full test suite before publishing.
 
 Rollout requires compatible broker and Pi source, CI installation, a new Pi process and explicit launcher opt-in. Source readiness does not prove the private page, Discord controls or destination writes are deployed. Verify those with the owning pot after CI rollout. No operator identity, private page link or entered value belongs in this public repository.
