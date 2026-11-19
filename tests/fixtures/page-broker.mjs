@@ -29,7 +29,7 @@ function reply(receipt) {
 	process.stdout.write(JSON.stringify(receipt))
 }
 
-export async function runPageBroker(pageEntry) {
+async function runPageBroker() {
 	const [, , operation, id] = process.argv
 	const request = await readInput()
 	if (operation === 'cancel')
@@ -54,7 +54,7 @@ export async function runPageBroker(pageEntry) {
 		source,
 		origin: target.origin,
 		capability: target.capability,
-		value: pageEntry,
+		value: process.env.PAGE_BROKER_ENTRY,
 	})
 	return reply({
 		id: dialog,
@@ -70,3 +70,5 @@ export async function runPageBroker(pageEntry) {
 		},
 	})
 }
+
+await runPageBroker()

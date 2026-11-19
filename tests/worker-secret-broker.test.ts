@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -35,14 +35,12 @@ function extensionPath(name: string): string {
 	)
 }
 
-async function pageBrokerScript(root: string): Promise<string> {
-	const script = join(root, 'human.mjs')
-	const fixture = new URL('./fixtures/page-broker.mjs', import.meta.url)
-	await writeFile(
-		script,
-		`import { runPageBroker } from ${JSON.stringify(fixture.href)}\nawait runPageBroker(${JSON.stringify(syntheticSecret)})\n`,
+function pageBrokerScript(context: TestContext): string {
+	process.env.PAGE_BROKER_ENTRY = syntheticSecret
+	context.after(() =>
+		Reflect.deleteProperty(process.env, 'PAGE_BROKER_ENTRY'),
 	)
-	return script
+	return fileURLToPath(new URL('./fixtures/page-broker.mjs', import.meta.url))
 }
 
 async function loadedTools(
@@ -99,9 +97,9 @@ async function askBrowserSecret(runner: ExtensionRunner): Promise<unknown> {
 }
 
 test('an opted-in worker routes a browser secret through the broker whose flags ask_user_question registered', async context => {
-	const runner = await loadedTools(context, async root => ({
+	const runner = await loadedTools(context, async () => ({
 		'human-dialog-worker': 'fixture-worker',
-		'human-dialog-broker': await pageBrokerScript(root),
+		'human-dialog-broker': pageBrokerScript(context),
 	}))
 	const toolResult = await askBrowserSecret(runner)
 	const details = parseSecretResult(
