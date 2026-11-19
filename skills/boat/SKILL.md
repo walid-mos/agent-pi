@@ -14,14 +14,14 @@ Inside a pot, prefix Boat account and lifecycle commands with `/opt/agent-sandbo
 
 1. Check `boat --no-update status --json` for `account.signedIn`. Follow [pot-setup.md](pot-setup.md) for a missing installation or expired pot key. A Mac uses `boat login` if its operator has not signed in.
 2. Read `boat --no-update limits --all --json` for available types, starts, concurrency and billing restrictions. Read current sizes and prices at https://docs.boat.dev/machines.md and https://docs.boat.dev/pricing.md.
-3. Prepare the source, setup and run names using [source-inputs.md](source-inputs.md). Check the [standing budget](budget.md) immediately before each start. Launch in-budget jobs without a dialog.
+3. Prepare the source, setup and run name using [source-inputs.md](source-inputs.md). Read the [standing budget](budget.md) for launch conditions and refusals.
 
 ## Run a job
 
-Use `scripts/job` on both the Mac and pots. It accepts the flags in `workspace job --help`, which also shows upload and result size limits. Use a fresh recorded name so workspace stops the VM after collection and leaves it available for the usage read. Omit `--keep` and credential-bearing profiles. Confirm the name is unused with `workspace list` so it cannot resume an existing VM.
+Use `scripts/job` on both the Mac and pots. It checks the budget using the size and TTL it passes to Workspace, then delegates only when the budget or an explicit exception allows the start. Use a fresh run name unique to this attempt so Workspace stops the VM after collection and leaves it available for the usage read. See `scripts/job --help` for the supported flags and `workspace job --help` for upload and result size limits.
 
 ```bash
-~/.pi/agent/skills/boat/scripts/job "$RUN_NAME" --provider boat \
+~/.pi/agent/skills/boat/scripts/job "$RUN_NAME" \
   --push "$SOURCE_EXPORT" --boat-type small --boat-ttl 20m \
   --setup "$SETUP_SCRIPT" --command "$JOB_COMMAND" --artifact "$REPORT_PATH"
 ```

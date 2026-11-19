@@ -3,14 +3,9 @@ set -euo pipefail
 
 fail() { echo "job: $1" >&2; exit 1; }
 
-command -v workspace >/dev/null || fail "workspace is missing: run $(dirname "$0")/install first"
-for argument in "$@"; do
-	case $argument in
-	BOAT_API_KEY | BOAT_ENVIRONMENT | --env=BOAT_API_KEY | --env=BOAT_ENVIRONMENT) fail "the pot's Boat control key never travels to a VM: pass only application variables with --env NAME" ;;
-	esac
-done
-
+scripts=$(dirname "$0")
+command -v workspace >/dev/null || fail "workspace is missing: run $scripts/install first"
 if [[ $(uname -s) == Darwin ]]; then
-	exec workspace job "$@"
+	exec python3 -B "$scripts/job-launch.py" "$@"
 fi
-exec /opt/agent-sandbox/session/with-vault --with boat workspace job "$@"
+exec /opt/agent-sandbox/session/with-vault --with boat python3 -B "$scripts/job-launch.py" "$@"

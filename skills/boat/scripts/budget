@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
 import argparse
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
+from itertools import takewhile
 import json
+import os
+import re
 import subprocess
 
 DAILY_BUDGET_DOLLARS = Decimal("2")
 SIMULTANEOUS_CHECKS = 2
 MICRODOLLAR = Decimal("0.000001")
 LIMITS_COMMAND = ("boat", "--no-update", "limits", "--all", "--json")
+PRICING_URL = "https://docs.boat.dev/pricing.md"
+SECONDS_PER_HOUR = 3600
+TTL_UNITS = {"s": 1, "m": 60, "h": SECONDS_PER_HOUR, "d": 24 * SECONDS_PER_HOUR}
+SUPPORTED_SIZES = ("small", "default", "large", "xlarge")
+PRICING_HEADER = "| Size | Per hour |"
+PRICE_ROW = re.compile(r'\| `([a-z]+)`[^|]*\| \*\*\\\$(\d+\.\d+)\*\* \|.*')
 
 
 class BudgetCheckError(Exception):
@@ -51,7 +60,9 @@ def decision(limits, maximum_charge, remainder, simultaneous_checks):
         raise BudgetCheckError("canStart must be a boolean")
     if not can_start or field(limits, "nextStartDollars") is None:
         return "provider-blocked"
-    if count(limits, "activeSandboxes") or count(limits, "liveUsageSeconds"):
+    active_sandboxes = count(limits, "activeSandboxes")
+    live_usage = count(limits, "liveUsageSeconds")
+    if active_sandboxes or live_usage:
         return "busy"
     if maximum_charge > remainder:
         return "over-budget"
@@ -65,7 +76,7 @@ def compute_bound(limits, highest_hourly_price):
     if not seconds_per_dollar:
         raise BudgetCheckError("creditSecondsPerDollar must be positive")
     seconds = Decimal(count(limits, "last24hUsageSeconds"))
-    raw_seconds_cost = seconds * highest_hourly_price / 3600
+    raw_seconds_cost = seconds * highest_hourly_price / SECONDS_PER_HOUR
     credit_seconds_cost = seconds / seconds_per_dollar
     return max(raw_seconds_cost, credit_seconds_cost).quantize(MICRODOLLAR, rounding=ROUND_CEILING)
 
@@ -100,21 +111,51 @@ def read_limits():
         raise BudgetCheckError("could not read Boat limits; check sign-in and retry") from error
 
 
+def read_prices():
+    try:
+        reply = subprocess.run(
+            ("curl", "-q", "--fail", "--silent", "--show-error", "--max-time", "15", PRICING_URL),
+            capture_output=True, check=True, text=True, timeout=20,
+            env={"PATH": os.environ.get("PATH", os.defpath)},
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeError) as error:
+        raise BudgetCheckError(f"could not read Boat's pricing table at {PRICING_URL}") from error
+    return parse_prices(reply.stdout)
+
+
+def parse_prices(document):
+    _, header, table = document.partition(PRICING_HEADER)
+    rows = takewhile(lambda row: row.startswith("|"), table.splitlines()[2:])
+    matches = [PRICE_ROW.fullmatch(row) for row in rows]
+    if not header or len(matches) != len(SUPPORTED_SIZES) or not all(matches):
+        raise BudgetCheckError(f"could not parse the machine prices at {PRICING_URL}")
+    prices = {match[1]: Decimal(match[2]) for match in matches}
+    if set(prices) != set(SUPPORTED_SIZES) or min(prices.values()) <= 0:
+        raise BudgetCheckError(f"expected one published rate per Boat size at {PRICING_URL}")
+    return prices
+
+
+def ttl_seconds(ttl):
+    match = re.fullmatch(r"([0-9]{1,20})([smhd])", ttl)
+    if match:
+        seconds = int(match[1]) * TTL_UNITS[match[2]]
+        if 0 < seconds < 2**64:
+            return seconds
+    raise BudgetCheckError("TTL must be a positive Workspace duration such as 120s, 20m or 2h")
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"Check the standing Boat budget of USD {DAILY_BUDGET_DOLLARS}.")
-    parser.add_argument("maximum_runtime_dollars")
-    parser.add_argument("--highest-hourly-dollars", required=True)
+    parser.add_argument("size", choices=SUPPORTED_SIZES)
+    parser.add_argument("ttl")
     parser.add_argument("--serialized", action="store_true", help="All callers have reserved an exclusive account start slot.")
     arguments = parser.parse_args()
     simultaneous_checks = 1 if arguments.serialized else SIMULTANEOUS_CHECKS
     try:
-        maximum_runtime = number(Decimal(arguments.maximum_runtime_dollars), "maximum runtime dollars", (Decimal,))
-        if maximum_runtime <= 0 or maximum_runtime != maximum_runtime.quantize(MICRODOLLAR):
-            raise BudgetCheckError("round positive maximum runtime dollars up to six decimal places")
-        highest_hourly_price = number(Decimal(arguments.highest_hourly_dollars), "highest hourly price", (Decimal,))
-        if highest_hourly_price <= 0:
-            raise BudgetCheckError("highest hourly price must be positive")
-        print(json.dumps(check(read_limits(), maximum_runtime, highest_hourly_price, simultaneous_checks)))
+        seconds = ttl_seconds(arguments.ttl)
+        prices = read_prices()
+        maximum_runtime = (prices[arguments.size] * seconds / SECONDS_PER_HOUR).quantize(MICRODOLLAR, rounding=ROUND_CEILING)
+        print(json.dumps(check(read_limits(), maximum_runtime, max(prices.values()), simultaneous_checks)))
     except (BudgetCheckError, InvalidOperation) as error:
         parser.exit(1, f"budget: {error}\n")
 
