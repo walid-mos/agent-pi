@@ -85,7 +85,8 @@ The one definition for test resources in every repository. A project's instructi
 
 - **Never let a secret value enter a tool argument, an output, a log or a transcript** — reference it by name or path; the blocking hook enforces `~/.pi/agent/security/secret-policy.ts`.
 - For any Infisical operation, load the `infisical` skill first.
-- **A secret the human holds is requested with `ask_user_secret`** (masked dialog, never chat): destination `browser` yields a one-time `sec:` handle for a `frontend_batch` `type` step, destination `infisical` writes the value to the vault and returns the key name. Never ask for a password, token or code in chat, and never accept one typed there.
+- **A secret the human holds is requested with `ask_user_secret`** (masked dialog, never chat): destination `browser` yields a one-time `sec:` handle for a `frontend_batch` `type` step, destination `infisical` writes the value to the vault and returns the key name. Never ask for or accept secrets in chat.
+- **Email and SMS sign-in codes and magic links are not secrets**: they are single-use and short-lived. Ask for them and accept them in chat, and use each only on the site that requested it. Passwords, API keys, long-lived tokens and recovery codes use the masked flow.
 
 ## Links and dev servers
 
