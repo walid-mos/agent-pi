@@ -69,6 +69,8 @@ function markdownTransform(
 	const transformers: readonly unknown[] = Array.isArray(candidates)
 		? candidates
 		: []
+	// Pi puts its Mermaid transformer before extension transformers.
+	const [nativeMermaid] = transformers
 	const isStreaming = reflectMember(host, 'isStreaming') === true
 	const messageType = kind === 'thinking' ? 'assistant-thinking' : 'assistant'
 	return (source, availableWidth) => {
@@ -82,7 +84,12 @@ function markdownTransform(
 				applyTransformer(transformer, markdown, context),
 			source,
 		)
-		return replaceUnrenderedMermaid(transformed, context)
+		return replaceUnrenderedMermaid(
+			transformed,
+			context,
+			(fence, retryContext) =>
+				applyTransformer(nativeMermaid, fence, retryContext),
+		)
 	}
 }
 
