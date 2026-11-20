@@ -37,8 +37,8 @@ Sign in through the broker:
 
 The script requires Python 3.11+ and reads the exact `[providers.boat].environment` value with its standard TOML parser. It checks the key, creates workspace's config if absent and checks the selected environment without starting a VM. A matching value in another table does not count. Keep an existing file and correct only that provider option if the script refuses it.
 
-Run jobs through `~/.pi/agent/skills/boat/scripts/job`, which wraps `workspace job` in that same vault reader. It refuses to forward the control key to a VM.
+Follow [Run a job](SKILL.md#run-a-job) for launches. The job wrapper uses the same vault reader and refuses to forward the control key to a VM.
 
 Check `boat --no-update status --json`, `boat --no-update limits --json` and `workspace job --help`, each through `with-vault --with boat` when it must reach the account. An expired or refused key needs `pot-access POT` on the Mac followed by `sign-in` in that pot. The job itself does not need the control key or vault identity in its runtime environment.
 
-For an application command, obtain only its required runtime variables through the application project's Infisical injection and pass their names with `workspace job --env NAME`. Installation and setup finish before workspace sends them to the VM. Never pass an Infisical machine credential through `--env` or put it in a repository script.
+For an application command, obtain only its required runtime variables through the application project's Infisical injection and pass their names to the shared launcher. Installation and setup finish before Workspace sends them to the VM. Never pass an Infisical machine credential through `--env` or put it in a repository script.

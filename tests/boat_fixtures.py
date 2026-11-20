@@ -53,3 +53,26 @@ class BoatFixture(unittest.TestCase):
 
     def assert_no_fixture_secret(self, result):
         self.assertNotIn("fixture-control-value", result.stdout + result.stderr)
+
+
+class BoatLimitsFixture(BoatFixture):
+    def setUp(self):
+        super().setUp()
+        fixture = Path(__file__).parent / "fixtures/boat-limits-idle.json"
+        self.limits = json.loads(fixture.read_text())
+        self.reply = self.root / "limits.json"
+        self.environment["FIXTURE_LIMITS"] = str(self.reply)
+        self.executable("boat", '''
+[[ $* == "--no-update limits --all --json" ]] || exit 3
+printf '%s\\n' "$*" >> "$FIXTURE_EVENTS"
+cat "$FIXTURE_LIMITS"
+''')
+        self.executable("curl", r'''
+[[ ${!#} == https://docs.boat.dev/pricing.md ]] || exit 3
+printf '%s\n' '| Size | Per hour | CPU | RAM | Disk |' \
+    '| - | - | - | - | - |' \
+    '| `small` | **\$0.018** | 2 vCPU | 4 GB | 51 GB |' \
+    '| `default` | **\$0.036** | 4 vCPU | 8 GB | 51 GB |' \
+    '| `large` | **\$0.072** | 8 vCPU | 16 GB | 111 GB |' \
+    '| `xlarge` \* | **\$0.200** | 16 vCPU | 32 GB | 251 GB |'
+''')

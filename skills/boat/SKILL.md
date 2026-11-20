@@ -6,42 +6,39 @@ description: >-
 
 # Boat
 
-Run heavy repository jobs with `workspace job`. Use `--boat-type small` and an explicit `--boat-ttl` on every job. Read `workspace job --help` for flags and collection limits. Interactive development belongs to `~/.pi/agent/skills/worktree/cloud.md`.
+Run heavy repository jobs, especially full E2E suites, on Boat. Keep them off the HP pots. Use `--boat-type small` by default and an explicit `--boat-ttl` on every job. Read the private client recipe for its measured size, setup and command. Interactive development belongs to `~/.pi/agent/skills/worktree/cloud.md`.
 
 ## Before a job
 
-Inside a pot, run Boat account checks through `/opt/agent-sandbox/session/with-vault --with boat`. Read [pot-setup.md](pot-setup.md) when access is missing.
+Inside a pot, prefix Boat account and lifecycle commands with `/opt/agent-sandbox/session/with-vault --with boat`. On the Mac use the signed-in CLI.
 
-1. Check `boat --no-update status --json` for `account.signedIn`. For a missing pot installation or expired key, follow [pot-setup.md](pot-setup.md). A Mac uses `boat login` if its operator has not signed in.
-2. Read `boat --no-update limits --json` for available types, starts, concurrency and billing restrictions. Read current sizes and prices from https://docs.boat.dev/machines.md and https://docs.boat.dev/pricing.md. The docs index is https://docs.boat.dev/llms.txt. Keep those facts there.
-3. Obtain spending approval for the number of small VMs, TTL, maximum charge, purpose and cleanup before starting them. Compute the ceiling as VM count × TTL in hours × the current small hourly price, plus any start surcharge reported by limits. A budget estimate grants no approval. Keep concurrency within both the approval and the live limits.
-4. Split dependency installation into `--setup`. Inject only the command's named variables with `--env NAME` after setup succeeds. Load `~/.pi/agent/skills/infisical/SKILL.md` before obtaining project secrets. Read the client's recipe for its project, allowed names and local services.
+1. Check `boat --no-update status --json` for `account.signedIn`. Follow [pot-setup.md](pot-setup.md) for a missing installation or expired pot key. A Mac uses `boat login` if its operator has not signed in.
+2. Read `boat --no-update limits --all --json` for available types, starts, concurrency and billing restrictions. Read current sizes and prices at https://docs.boat.dev/machines.md and https://docs.boat.dev/pricing.md.
+3. Prepare the source, setup and run name using [source-inputs.md](source-inputs.md). Read the [standing budget](budget.md) for launch conditions and refusals.
 
 ## Run a job
 
-Read [source-inputs.md](source-inputs.md) before preparing an upload. Use its owned export of committed source, with each extra required input named explicitly. Inside a pot, `scripts/job` wraps `workspace job` in its vault reader. On the Mac, call `workspace job` directly.
+Use `scripts/job` on both the Mac and pots. It checks the budget using the size and TTL it passes to Workspace, then delegates only when the budget or an explicit exception allows the start. Use a fresh run name unique to this attempt so Workspace stops the VM after collection and leaves it available for the usage read. See `scripts/job --help` for the supported flags and `workspace job --help` for upload and result size limits.
 
 ```bash
-~/.pi/agent/skills/boat/scripts/job --push "$SOURCE_EXPORT" --boat-type small --boat-ttl 20m \
-  --setup /absolute/path/install-dependencies.sh \
-  --command 'pnpm test' --artifact reports
+~/.pi/agent/skills/boat/scripts/job "$RUN_NAME" \
+  --push "$SOURCE_EXPORT" --boat-type small --boat-ttl 20m \
+  --setup "$SETUP_SCRIPT" --command "$JOB_COMMAND" --artifact "$REPORT_PATH"
 ```
 
-The wrapper shares workspace's flags. Read `workspace job --help` for them.
-
-Use an artifact path that the command actually creates, or omit `--artifact` for logs only. Workspace omits Git history and a GitHub token, but its file selection is broader than committed source. Follow the source-input procedure even when the original checkout has ignore rules.
-Workspace prints the result directory and returns the remote command's exit status. Inspect its setup log, command log, status files and artifact archive even when the exit is nonzero. Artifacts are unmodified command output. Select only intended reports and inspect them before publishing.
+Add `--env NAME` for each required runtime variable. Select only artifacts the command creates, or omit `--artifact` for logs only. Inspect artifacts before publishing them because workspace returns them unchanged.
 
 The caller trusts its setup and command as it does when running that repository locally. Workspace sends selected values on SSH stdin and masks their exact bytes in collected logs. This does not isolate hostile same-user processes, prevent deliberate encoded disclosure or sanitize artifacts. Do not upload a production credential to an untrusted checkout. For stronger client isolation, follow the private recipe rather than claiming this generic job provides it.
 
 ## Finish
 
-Read [operations.md](operations.md) for cleanup, recovery and cost evidence before ending a job. Report the VM id, source revision, command exit, log/artifact locations, actual charge and confirmed stopped or deleted state. Preserve a failed VM only as workspace documents, and stop it immediately while investigating so that its TTL is not the cleanup plan.
+Follow [operations.md](operations.md#cleanup-and-cost) for every exit. Verify stop, collect usage before deletion, verify deletion, and report results and actual usage together.
 
-For a full Playwright suite, read the private client's measurement recipe before choosing shard count. A small VM can be slower than the HP. Choose shard count and workers from measured peak memory, CPU, wall time and the approved charge ceiling. Give every shard its own database and storage, collect blob reports, then merge them.
+For a full Playwright suite, read the private client's measurement recipe before choosing shard count. Use measured peak memory, CPU and wall time to fit the budget and TTL. Give every shard its own database and storage, collect blob reports, then merge them.
 
 ## References
 
 - [pot-setup.md](pot-setup.md): install CLIs and grant or renew each pot's access.
 - [source-inputs.md](source-inputs.md): prepare a committed source export and explicit inputs before an upload.
+- [budget.md](budget.md): check the standing budget before each start.
 - [operations.md](operations.md): stop, recover, inspect usage, snapshots and remote access, and register temporary files before setup or probes.

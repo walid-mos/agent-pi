@@ -1,0 +1,22 @@
+{
+	"activeSandboxes": 0,
+	"canStart": true,
+	"creditSecondsPerDollar": 100000,
+	"last24hUsageSeconds": 1233,
+	"liveUsageSeconds": 0,
+	"nextStartDollars": 0,
+	"overagePrices": {
+		"vmHourDollars": 0.036,
+		"startBrackets": [
+			{ "aboveMultiple": 1, "dollars": 0.03, "upToMultiple": 1.5 },
+			{ "aboveMultiple": 1.5, "dollars": 0.05, "upToMultiple": 2 },
+			{ "aboveMultiple": 2, "dollars": 0.07, "upToMultiple": 6 }
+		]
+	},
+	"starts": {
+		"day": { "limit": 200, "remaining": 196, "used": 4 },
+		"hour": { "limit": 60, "remaining": 60, "used": 0 },
+		"minute": { "limit": 12, "remaining": 12, "used": 0 },
+		"unlimited": false
+	}
+}

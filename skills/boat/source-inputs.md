@@ -27,3 +27,11 @@ Use an owned clean export of a reviewed commit as the default upload. Do not pas
 6. Review the final `git ls-files --cached` list and file contents in the export. Ensure there are no unexpected untracked files, symlinks to private paths or modifications after review. Pass the absolute `SOURCE_EXPORT` path to `--push` and record the source commit and explicit extra inputs with the result. Keep setup and package installs out of the local export so they cannot add incidental upload files.
 
 The export removes local incidental state from the default input. It does not make a committed secret safe or isolate hostile build code. Rebuild and review the export when its inputs change.
+
+## Setup and preflights
+
+1. Read the private client recipe. List required tools, generated artifacts and services. Put installation, dependency builds and required artifact checks in `--setup`, in dependency order. Use the same package and test resolution as the actual run. Preflight the committed scripts and inputs locally without running the heavy suite or changing test configuration to make a probe pass.
+2. Derive resource names from a fresh run ID. Check each provider's allowed characters and byte limit, including generated suffixes. If shortening a name, preserve its unique part and use the same final name in creation, reachability checks and teardown. Record the run name and exact resource identities before use. Register cleanup before provisioning, and leave existing resources alone.
+3. Load `~/.pi/agent/skills/infisical/SKILL.md` before obtaining the application's required runtime variables. Confirm availability by name and pass only those names with `--env NAME`. Put checks that require the VM in setup before expensive client operations. Once workspace injects runtime variables, start the command with any credential-dependent reachability checks, before tests or client writes. Probe the actual scoped endpoints without logging values.
+
+Only run reviewed setup and command code with the named credentials. Workspace's log masking covers exact values. Use the private recipe where a client needs stronger isolation.
