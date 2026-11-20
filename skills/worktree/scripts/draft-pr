@@ -1,10 +1,70 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage='usage: draft-pr <checkout> <repository-format title> [base branch]'
-checkout=${1:?$usage}
-title=${2:?$usage}
+usage='usage: draft-pr <checkout> <repository-format title> --description <public Markdown> [base branch]'
+templates=(.github/pull_request_template.md .github/PULL_REQUEST_TEMPLATE.md docs/pull_request_template.md PULL_REQUEST_TEMPLATE.md)
+placeholder='^[[:space:]]*((todo|tbd|wip|n/?a|none|placeholder|x+|[-.*]+)[[:space:]]*)+$'
+
+refuse() {
+	printf 'draft-pr: %s\n%s\n' "$1" "$usage" >&2
+	exit 2
+}
+
+# The words a reader needs: HTML comments and template headings never count as content.
+visible_text() {
+	awk '
+		BEGIN { comment = 0 }
+		comment { if ($0 ~ /-->/) comment = 0; next }
+		/<!--/ { if ($0 !~ /-->/) comment = 1; sub(/<!--.*/, ""); if ($0 ~ /^[[:space:]]*$/) next }
+		/^#{1,6}[[:space:]]/ { next }
+		{ print }
+	'
+}
+
+template_path() {
+	local candidate
+	for candidate in "${templates[@]}"; do
+		if [[ -f $candidate ]]; then
+			printf '%s\n' "$candidate"
+			return 0
+		fi
+	done
+}
+
+missing_headings() {
+	local template=$1 heading
+	grep -E '^#{1,6}[[:space:]]' "$template" | while IFS= read -r heading; do
+		grep -qxF -- "$heading" <<<"$description" || printf '%s ' "$heading"
+	done
+}
+
+if [[ $# -lt 2 || -z $1 || -z $2 ]]; then
+	refuse 'a checkout and a title are required'
+fi
+if [[ ${3-} != --description ]]; then
+	refuse "--description <public Markdown> must follow the title${3+, got '$3'}"
+fi
+description=${4-}
+if [[ -z ${description//[[:space:]]/} ]]; then
+	refuse '--description is missing or blank: write the public purpose, the intended behavior and the checks'
+fi
+if [[ $# -gt 5 ]]; then
+	refuse "only one base branch may follow the description, got $(($# - 4)) arguments"
+fi
+checkout=$1
+title=$2
 cd "$checkout"
+
+visible=$(printf '%s\n' "$description" | visible_text)
+placeholder_line=$(printf '%s\n' "$visible" | grep -Ei "$placeholder" | head -1 || true)
+[[ -z $placeholder_line ]] || refuse "the description is only a placeholder ('$placeholder_line'): describe the real change"
+read -r words characters < <(printf '%s\n' "$visible" | wc -w -c)
+((words >= 3 && characters >= 20)) || refuse "the description is too short to describe the change: $words words, $characters characters"
+template=$(template_path || true)
+if [[ -n $template ]]; then
+	missing=$(missing_headings "$template")
+	[[ -z $missing ]] || refuse "the description must follow $template; it is missing the section(s): $missing"
+fi
 
 branch=$(git branch --show-current)
 if [[ -z $branch ]]; then
@@ -18,7 +78,7 @@ if [[ -n $open_pull_request ]]; then
 	exit 0
 fi
 
-base=${3:-$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)}
+base=${5:-$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)}
 git fetch --quiet origin "$base"
 
 if [[ $(git rev-list --count "origin/$base..HEAD") == 0 ]]; then
@@ -27,4 +87,4 @@ if [[ $(git rev-list --count "origin/$base..HEAD") == 0 ]]; then
 fi
 git push --quiet -u origin "$branch"
 
-gh pr create --draft --base "$base" --head "$branch" --title "$title" --body ''
+gh pr create --draft --base "$base" --head "$branch" --title "$title" --body "$description"
