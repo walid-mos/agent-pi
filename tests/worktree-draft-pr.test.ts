@@ -30,6 +30,18 @@ const description = [
 	'Checks planned: `pnpm test`, not yet run.',
 ].join('\n')
 
+type FixtureOptions = { openPullRequest?: string; template?: string }
+
+const defaultPullRequestTemplate = [
+	'## Purpose',
+	'',
+	'<!-- Why this change exists. -->',
+	'',
+	'## What changed',
+	'',
+	'## Checks',
+].join('\n')
+
 type Fixture = {
 	checkout: string
 	calls: string
@@ -46,7 +58,7 @@ function git(fixture: Fixture, cwd: string, ...args: string[]): string {
 	return run.stdout.trim()
 }
 
-function createFixture(t: TestContext, openPullRequest = ''): Fixture {
+function createFixture(t: TestContext, options: FixtureOptions = {}): Fixture {
 	const root = mkdtempSync(join(tmpdir(), 'draft-pr-'))
 	t.after(() => rmSync(root, { recursive: true, force: true }))
 	const bin = join(root, 'bin')
@@ -66,7 +78,7 @@ function createFixture(t: TestContext, openPullRequest = ''): Fixture {
 			GIT_COMMITTER_EMAIL: 'fixture@example.invalid',
 			...fakeGhEnvironment,
 			FAKE_GH_CALLS: join(root, 'gh-calls.jsonl'),
-			FAKE_GH_OPEN_PULL_REQUEST: openPullRequest,
+			FAKE_GH_OPEN_PULL_REQUEST: options.openPullRequest ?? '',
 			FAKE_GH_CREATED_PULL_REQUEST: createdPullRequest,
 		},
 	}
@@ -94,6 +106,13 @@ function createFixture(t: TestContext, openPullRequest = ''): Fixture {
 		'main:develop',
 	)
 	git(fixture, fixture.checkout, 'switch', '-q', '-c', branch)
+	if (options.template) {
+		mkdirSync(join(fixture.checkout, '.github'))
+		writeFileSync(
+			join(fixture.checkout, '.github/pull_request_template.md'),
+			options.template,
+		)
+	}
 	return fixture
 }
 
@@ -142,6 +161,68 @@ const refusals: Record<string, string[]> = {
 	'a blank description followed by a base': ['--description', '', 'main'],
 }
 
+const placeholders: Record<string, string> = {
+	'a todo marker': 'TODO',
+	'a todo marker after a heading': '## Purpose\n\nTODO',
+	'a tbd marker': 'TBD.',
+	'a work-in-progress marker': 'wip',
+	'not-applicable': 'n/a',
+	'a dash': '-',
+	ellipsis: '...',
+	'a single x': 'x',
+	'a placeholder word': 'placeholder',
+	'a repeated placeholder marker': 'TODO TODO TODO TODO TODO TODO TODO',
+	'too little to describe a change': 'Fix bug',
+}
+
+for (const [refusal, body] of Object.entries(placeholders)) {
+	test(`refuses a description that is ${refusal} before any Git or GitHub side effect`, t => {
+		const fixture = createFixture(t)
+		const head = git(fixture, fixture.checkout, 'rev-parse', 'HEAD')
+		const run = runDraftPr(fixture, '--description', body)
+		assert.notEqual(run.status, 0)
+		assert.match(run.stderr, /description/u)
+		assert.deepEqual(ghCalls(fixture), [])
+		assert.equal(git(fixture, fixture.checkout, 'rev-parse', 'HEAD'), head)
+		assert.equal(remoteBranchHead(fixture), '')
+	})
+}
+
+test('refuses a description that skips a section of the repository template', t => {
+	const fixture = createFixture(t, { template: defaultPullRequestTemplate })
+	const run = runDraftPr(
+		fixture,
+		'--description',
+		'## Purpose\n\nOpen the draft with a public summary.\n',
+	)
+	assert.notEqual(run.status, 0)
+	assert.match(run.stderr, /pull_request_template\.md/u)
+	assert.match(run.stderr, /## What changed/u)
+	assert.match(run.stderr, /## Checks/u)
+	assert.deepEqual(ghCalls(fixture), [])
+	assert.equal(remoteBranchHead(fixture), '')
+})
+
+test('opens the draft with a body that follows the repository template', t => {
+	const fixture = createFixture(t, { template: defaultPullRequestTemplate })
+	const templated = [
+		'## Purpose',
+		'',
+		'Open the task draft with a public summary.',
+		'',
+		'## What changed',
+		'',
+		'- The helper requires a real description.',
+		'',
+		'## Checks',
+		'',
+		'- `pnpm test`: planned, not yet run.',
+	].join('\n')
+	const run = runDraftPr(fixture, '--description', templated)
+	assert.equal(run.status, 0, run.stderr)
+	assert.equal(createdWith(fixture, '--body'), templated)
+})
+
 for (const [refusal, args] of Object.entries(refusals)) {
 	test(`refuses ${refusal} before any Git or GitHub side effect`, t => {
 		const fixture = createFixture(t)
@@ -177,7 +258,7 @@ test('opens the draft on an explicit base branch after the description', t => {
 
 test('returns an open pull request without pushing, creating or editing one', t => {
 	const openPullRequest = 'https://github.invalid/fixture/repository/pull/9'
-	const fixture = createFixture(t, openPullRequest)
+	const fixture = createFixture(t, { openPullRequest })
 	const head = git(fixture, fixture.checkout, 'rev-parse', 'HEAD')
 	const run = runDraftPr(fixture, '--description', description)
 	assert.equal(run.status, 0, run.stderr)
